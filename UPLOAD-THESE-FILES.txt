@@ -1,0 +1,174 @@
+===================================================================
+  UPLOAD THESE FILES TO FIX THE ERROR
+===================================================================
+
+Based on your console logs, the OLD version of JavaScript is running.
+You need to upload the UPDATED files to your server.
+
+===================================================================
+  FILES TO UPLOAD VIA SFTP
+===================================================================
+
+Upload FROM this folder:
+  E:\Work\YB\Theme Customize\salute-child\
+
+Upload TO your SFTP server:
+  Server: access-5018034562.webspace-host.com
+  Port: 22
+  Username: a2580036
+  Password: F$0y)K2DEwj(K6%T@iO5T$(B
+
+-------------------------------------------------------------------
+FILE 1: JavaScript (MOST IMPORTANT)
+-------------------------------------------------------------------
+
+FROM:  assets\js\booking-customization.js
+TO:    /wp-content/themes/salute-child/assets/js/booking-customization.js
+
+This file contains:
+  - Auto-select doctor function
+  - Fixed widget detection (now waits 10 seconds)
+  - AJAX interceptor for doctor injection
+
+-------------------------------------------------------------------
+FILE 2: PHP (REQUIRED)
+-------------------------------------------------------------------
+
+FROM:  includes\kivicare-customizations\auto-assignment.php
+TO:    /wp-content/themes/salute-child/includes/kivicare-customizations/auto-assignment.php
+
+This file contains:
+  - AJAX handler for auto-selecting doctor
+  - Returns first available doctor for service
+
+===================================================================
+  AFTER UPLOADING
+===================================================================
+
+1. CLEAR CACHE:
+   - Browser: Ctrl + Shift + Delete
+   - WordPress cache plugin (if you have one)
+
+2. HARD REFRESH:
+   - Press: Ctrl + F5 on booking page
+
+3. TEST:
+   - Go to booking page
+   - Press F12 (open console)
+   - Click on a SERVICE
+
+4. CHECK CONSOLE - You should NOW see:
+   
+   Medico Contigo: Service card clicked, ID: 1
+   Medico Contigo: Auto-selecting doctor for service: 1
+   Medico Contigo: Doctor auto-select response: {success: true...}
+   Medico Contigo: Auto-selected doctor ID: 123
+   Medico Contigo: Doctor auto-selected successfully
+
+   IF YOU DON'T SEE THESE MESSAGES:
+   - The files weren't uploaded correctly
+   - OR cache wasn't cleared
+   - OR you need to hard refresh (Ctrl + Shift + R)
+
+===================================================================
+  WHAT SHOULD HAPPEN
+===================================================================
+
+BEFORE UPLOAD (Current - NOT WORKING):
+  - Click service
+  - Click next
+  - ERROR: "Select doctor session is not available"
+  - Can't proceed to date/time
+
+AFTER UPLOAD (Fixed - SHOULD WORK):
+  - Click service
+  - Doctor auto-selected (behind the scenes)
+  - Click next
+  - Date/Time slots appear - NO ERROR!
+  - Can complete booking
+
+===================================================================
+  VERSION CHECK
+===================================================================
+
+To verify you have the NEW version after uploading:
+
+1. Open browser console (F12)
+2. Refresh page (Ctrl + F5)
+3. Type this command:
+
+   MC_Booking.autoSelectDoctor
+
+4. Press Enter
+
+EXPECTED RESULT:
+  - Should show: function autoSelectDoctor(serviceId, language) {...}
+
+IF YOU SEE:
+  - undefined = OLD version still loaded (clear cache!)
+  - function = NEW version loaded (correct!)
+
+===================================================================
+  TROUBLESHOOTING
+===================================================================
+
+ISSUE: Still see "Widget not found" message
+-----------------------------------------
+This is OK! The message appears because widget loads slowly.
+The MutationObserver catches it later and everything works.
+
+You'll see:
+  "Widget not found after 50 attempts"
+  (then later)
+  "Medico Contigo: Injected after category"
+
+This is NORMAL and doesn't prevent functionality.
+
+
+ISSUE: No auto-select messages appear
+-----------------------------------------
+Check:
+1. Did you upload booking-customization.js?
+2. Did you clear browser cache?
+3. Did you hard refresh (Ctrl + F5)?
+
+Run in console:
+  console.log(typeof MC_Booking.autoSelectDoctor);
+
+Should show: "function"
+If shows: "undefined" = files not uploaded or cache issue
+
+
+ISSUE: AJAX error
+-----------------------------------------
+Check:
+1. Did you upload auto-assignment.php?
+2. Check browser console for red errors
+
+Run in console:
+  jQuery.post(ajax_object.ajax_url, {
+      action: 'mc_get_first_available_doctor',
+      service_id: 1
+  }, function(response) {
+      console.log('Response:', response);
+  });
+
+Should show: {success: true, data: {doctor_id: 123, time_slot: 30}}
+
+===================================================================
+  SUMMARY
+===================================================================
+
+1. ✅ Upload 2 files via SFTP
+2. ✅ Clear all caches
+3. ✅ Hard refresh (Ctrl + F5)
+4. ✅ Click on a service
+5. ✅ Check console for auto-select messages
+6. ✅ Proceed to date/time (should work now!)
+
+===================================================================
+
+UPLOAD NOW and the error will be fixed!
+
+===================================================================
+

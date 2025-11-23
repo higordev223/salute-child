@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir /s /b \"book-appointment-widget.js\" 2)",
+      "Bash(nul)",
+      "Bash(dir /b)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "Read(//e/Work/YB/Backup/**)",
+      "Read(//e/Work/YB/Work/app/public/wp-content/plugins/kivicare-clinic-management-system/**)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
