@@ -6,19 +6,33 @@
 (function ($) {
   "use strict";
 
-  console.log("Medico Contigo: Initializing booking customization (Tab-Based)");
-
   var MC_Booking = {
     selectedLanguage: null,
     selectedService: null,
     selectedDoctor: null,
     initialized: false,
 
+    // Debug helper
+    logState: function(location) {
+      console.log("========================================");
+      console.log("🔍 MC_Booking State at: " + location);
+      console.log("selectedService:", this.selectedService);
+      console.log("selectedLanguage:", this.selectedLanguage);
+      console.log("selectedDoctor:", this.selectedDoctor);
+      console.log("MC_SELECTED_DOCTOR:", window.MC_SELECTED_DOCTOR);
+      console.log("SessionStorage flags:");
+      console.log("  - mc_language_tab_allowed_by_kivicare:", sessionStorage.getItem("mc_language_tab_allowed_by_kivicare"));
+      console.log("  - mc_language_tab_clicked:", sessionStorage.getItem("mc_language_tab_clicked"));
+      console.log("Active tab:", $(".iq-tab-pannel.active").attr("id"));
+      console.log("========================================");
+    },
+
     init: function () {
       if (this.initialized) return;
       this.initialized = true;
 
-      console.log("Medico Contigo: Setting up event listeners");
+      console.log("🚀 MC_Booking initialized");
+      this.logState("INIT");
 
       // ✅ CRITICAL FIX: Ensure bookAppointmentWidgetData exists and has proper structure
       if (typeof window.bookAppointmentWidgetData !== 'undefined') {
@@ -26,7 +40,6 @@
         if (!window.bookAppointmentWidgetData.preselected_single_doctor_id) {
           window.bookAppointmentWidgetData.preselected_single_doctor_id = false;
         }
-        console.log("Medico Contigo: bookAppointmentWidgetData initialized");
       }
 
       // ✅ CRITICAL: Intercept ALL AJAX requests to inject doctor selection
@@ -56,7 +69,7 @@
       // ✅ Monitor date-time tab activation
       this.monitorDateTimeTab();
 
-      console.log("Medico Contigo: Initialization complete");
+      // Back button handling removed - let KiviCare handle it naturally
     },
 
     /**
@@ -70,14 +83,8 @@
         "click",
         'a[href="#date-time"], #date-time-tab',
         function () {
-          console.log("Medico Contigo: 📅 Date-time tab clicked");
-
           setTimeout(function () {
             if (window.MC_SELECTED_DOCTOR) {
-              console.log(
-                "Medico Contigo: 🔒 Enforcing doctor for date-time tab:",
-                window.MC_SELECTED_DOCTOR
-              );
 
               // ✅ FIX: Ensure clinic_id is set (get from bookAppointmentWidgetData or default to 1)
               var clinicId = window.bookAppointmentWidgetData?.preselected_clinic_id ||
@@ -110,27 +117,10 @@
               $("input[name='doctor_id']").trigger("change");
               $("input[name='clinic_id']").trigger("change");
 
-              console.log(
-                "Medico Contigo: ✅ Doctor enforced for date-time, triggered change event"
-              );
-
-              // Debug: Check all doctor AND clinic fields
-              console.log("Medico Contigo: 🔍 All field values:");
-              $("input[name*='doctor'], input[name*='clinic']").each(
-                function () {
-                  console.log("  -", $(this).attr("name"), "=", $(this).val());
-                }
-              );
-
               // Check if clinic is set
               if (!clinicId || clinicId === "0") {
-                console.warn(
-                  "Medico Contigo: ⚠️ No clinic_id found! Defaulting to clinic_id=1"
-                );
                 clinicId = 1;
                 $("input[name='clinic_id']").val(clinicId);
-              } else {
-                console.log("Medico Contigo: ✅ Clinic ID:", clinicId);
               }
             }
           }, 100);
@@ -142,18 +132,11 @@
         mutations.forEach(function (mutation) {
           if (mutation.attributeName === "class") {
             var $target = $(mutation.target);
-            if (
-              $target.attr("id") === "date-time" &&
-              $target.hasClass("active")
-            ) {
-              console.log("Medico Contigo: 📅 Date-time panel became active");
+            var targetId = $target.attr("id");
 
+            // Handle date-time panel becoming active
+            if (targetId === "date-time" && $target.hasClass("active")) {
               if (window.MC_SELECTED_DOCTOR) {
-                console.log(
-                  "Medico Contigo: 🔒 Re-enforcing doctor:",
-                  window.MC_SELECTED_DOCTOR
-                );
-
                 // ✅ FIX: Ensure clinic_id is set
                 var clinicId = window.bookAppointmentWidgetData?.preselected_clinic_id ||
                                window.bookAppointmentWidgetData?.clinic_id ||
@@ -177,19 +160,107 @@
                   self.triggerDateTimeLoad();
                 }, 300);
               }
+
+              // Mark that we're currently on date-time
+              window.MC_LAST_ACTIVE_TAB = "date-time";
+            }
+
+            // ✅ CRITICAL: Intercept ANY tab becoming active and enforce language requirement
+            if ($target.hasClass("iq-tab-pannel") && $target.hasClass("active")) {
+              // Check if 'active' class was just added (wasn't in old value)
+              var wasJustActivated = mutation.oldValue && mutation.oldValue.indexOf('active') === -1;
+
+              // If a tab was just activated (wasn't active before)
+              if (wasJustActivated && targetId !== 'category' && targetId !== 'language') {
+                console.log("🔔 TAB ACTIVATED:", targetId);
+
+                // ✅ FIX: When detail-info (login/register) tab activates, ensure register tab is shown
+                if (targetId === 'detail-info' || targetId === 'kc_register') {
+                  setTimeout(function() {
+                    console.log("📝 Activating register tab within detail-info panel");
+
+                    // Find and click the register tab link
+                    var $registerTabLink = $('#detail-info .kc-tab-link[href="#kc_register"], #detail-info a[href="#kc_register"], .kc-tab-link[href="#kc_register"]');
+
+                    if ($registerTabLink.length > 0) {
+                      console.log("   Found register tab link, clicking it");
+                      $registerTabLink.trigger('click');
+                    } else {
+                      // Fallback: directly show register content
+                      console.log("   Register tab link not found, showing register panel directly");
+                      $('#kc_register').addClass('active').show();
+                      $('#kc_login').removeClass('active').hide();
+                    }
+                  }, 100);
+                }
+
+                // Check if language selection is required
+                if (self.selectedService && !self.selectedLanguage) {
+                  console.log("⚠️ BLOCKING AUTO-ADVANCE - Language not selected!");
+                  console.log("   Current tab:", targetId);
+                  console.log("   Redirecting to language tab...");
+
+                  // Remove active from this tab
+                  $target.removeClass("active");
+
+                  // Activate language tab instead
+                  setTimeout(function() {
+                    $(".iq-tab-pannel").removeClass("active");
+                    $("#language").addClass("active");
+
+                    // Also activate the language tab link
+                    $(".tab-link, .tab-item a").removeClass("active");
+                    var $languageTabLink = $('a[href="#language"], #language-tab');
+                    $languageTabLink.addClass("active");
+                    $languageTabLink.closest(".tab-item, li").addClass("active");
+
+                    console.log("✅ Redirected to language tab");
+                  }, 10);
+
+                  return;
+                }
+              }
+
+              // Update tracking
+              window.MC_LAST_ACTIVE_TAB = targetId;
             }
           }
         });
       });
+
+      // Initialize tab tracking
+      window.MC_LAST_ACTIVE_TAB = null;
 
       // Observe all tab panels
       $(".iq-tab-pannel").each(function () {
         observer.observe(this, {
           attributes: true,
           attributeFilter: ["class"],
+          attributeOldValue: true, // Track previous class value
         });
       });
+
+      // ✅ GENERAL: Update MC_LAST_ACTIVE_TAB whenever ANY tab becomes active
+      $(document).on("click", ".tab-link, .tab-item a, a[href^='#']", function() {
+        var href = $(this).attr("href");
+        if (href && href.startsWith("#")) {
+          var targetId = href.replace("#", "");
+
+          // Wait a bit for the tab to actually activate
+          setTimeout(function() {
+            var $targetPanel = $("#" + targetId);
+            if ($targetPanel.hasClass("iq-tab-pannel") && $targetPanel.hasClass("active")) {
+              window.MC_LAST_ACTIVE_TAB = targetId;
+            }
+          }, 50);
+        }
+      });
     },
+
+    /**
+     * Back button handler REMOVED - Let KiviCare handle back navigation naturally
+     * The aggressive interception was breaking KiviCare's show/hide logic for panels
+     */
 
     /**
      * ✅ CRITICAL: Intercept ALL AJAX requests to inject MC_SELECTED_DOCTOR
@@ -207,11 +278,6 @@
             settings.url.indexOf("wp-json") !== -1)
         ) {
           if (window.MC_SELECTED_DOCTOR) {
-            console.log(
-              "Medico Contigo: 🚀 Intercepting AJAX request, injecting doctor:",
-              window.MC_SELECTED_DOCTOR
-            );
-
             // Inject into URL parameters
             if (settings.url.indexOf("?") !== -1) {
               settings.url +=
@@ -230,8 +296,6 @@
                 settings.data.MC_SELECTED_DOCTOR = window.MC_SELECTED_DOCTOR;
               }
             }
-
-            console.log("Medico Contigo: ✅ Doctor injected into AJAX request");
           }
         }
       });
@@ -243,33 +307,100 @@
     listenForServiceSelection: function () {
       var self = this;
 
+      // ✅ NEW: Watch for when user returns to service selection (category) tab
+      // Use MutationObserver to detect when category panel becomes active (handles back button)
+      if (typeof MutationObserver !== 'undefined') {
+        var categoryObserver = new MutationObserver(function(mutations) {
+          mutations.forEach(function(mutation) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+              var $target = $(mutation.target);
+              if ($target.attr('id') === 'category' && $target.hasClass('active')) {
+                console.log("🔙 CATEGORY PANEL BECAME ACTIVE (via back button or click)");
+                self.logState("BEFORE clearing language data");
+
+                // Clear language selection so user must select again
+                self.selectedLanguage = null;
+                self.selectedDoctor = null;
+                window.MC_SELECTED_DOCTOR = null;
+
+                // Clear language cards
+                $("#mc-language-cards").empty();
+                $("#mc-selected-language").val("");
+
+                // Remove selected class from any language cards
+                $(".mc-language-card").removeClass("selected");
+
+                // Clear session flags
+                sessionStorage.setItem("mc_language_tab_allowed_by_kivicare", "false");
+                sessionStorage.setItem("mc_language_tab_clicked", "false");
+
+                self.logState("AFTER clearing language data");
+              }
+            }
+          });
+        });
+
+        // Start observing the category panel
+        var $categoryPanel = $('#category');
+        if ($categoryPanel.length > 0) {
+          categoryObserver.observe($categoryPanel[0], {
+            attributes: true,
+            attributeFilter: ['class']
+          });
+        } else {
+          // If panel doesn't exist yet, try again after a delay
+          setTimeout(function() {
+            var $categoryPanel = $('#category');
+            if ($categoryPanel.length > 0) {
+              categoryObserver.observe($categoryPanel[0], {
+                attributes: true,
+                attributeFilter: ['class']
+              });
+            }
+          }, 1000);
+        }
+      }
+
+      // Also handle direct clicks (for manual tab switching)
+      $(document).on("click", 'a[href="#category"], #category-tab', function() {
+        console.log("Medico Contigo: Category tab clicked - clearing language data");
+
+        // Clear language selection so user must select again
+        self.selectedLanguage = null;
+        self.selectedDoctor = null;
+        window.MC_SELECTED_DOCTOR = null;
+
+        // Clear language cards
+        $("#mc-language-cards").empty();
+        $("#mc-selected-language").val("");
+
+        // Remove selected class from any language cards
+        $(".mc-language-card").removeClass("selected");
+
+        // Clear session flags
+        sessionStorage.setItem("mc_language_tab_allowed_by_kivicare", "false");
+        sessionStorage.setItem("mc_language_tab_clicked", "false");
+      });
+
       // Listen for service checkbox changes
       $(document).on("change", ".card-checkbox.selected-service", function () {
         if ($(this).is(":checked")) {
           var serviceId = $(this).attr("service_id") || $(this).val();
-          var serviceName = $(this).attr("service_name");
+          console.log("✅ SERVICE SELECTED (checkbox):", serviceId);
 
-          console.log(
-            "Medico Contigo: Service selected:",
-            serviceId,
-            serviceName
-          );
           self.selectedService = serviceId;
+
+          // Clear previous language selection when service changes
+          self.selectedLanguage = null;
+          self.selectedDoctor = null;
+          window.MC_SELECTED_DOCTOR = null;
+          $("#mc-language-cards").empty();
+          $("#mc-selected-language").val("");
 
           // Allow language tab to be activated (KiviCare will auto-advance to it)
           sessionStorage.setItem("mc_language_tab_allowed_by_kivicare", "true");
-          console.log(
-            "Medico Contigo: ✅ FLAG SET - Allowing language tab activation after service selection"
-          );
-          console.log(
-            "Medico Contigo: Flag value:",
-            sessionStorage.getItem("mc_language_tab_allowed_by_kivicare")
-          );
 
-          // ✅ NOTE: Doctor will be auto-assigned AFTER language selection (not here)
-          console.log(
-            "Medico Contigo: Waiting for language selection before assigning doctor"
-          );
+          self.logState("AFTER service selection (checkbox)");
         }
       });
 
@@ -284,21 +415,24 @@
             var serviceId = checkbox.attr("service_id") || checkbox.val();
 
             if (serviceId) {
-              console.log("Medico Contigo: Service card clicked:", serviceId);
+              console.log("✅ SERVICE SELECTED (label click):", serviceId);
+
               self.selectedService = serviceId;
+
+              // Clear previous language selection when service changes
+              self.selectedLanguage = null;
+              self.selectedDoctor = null;
+              window.MC_SELECTED_DOCTOR = null;
+              $("#mc-language-cards").empty();
+              $("#mc-selected-language").val("");
 
               // Allow language tab to be activated (KiviCare will auto-advance to it)
               sessionStorage.setItem(
                 "mc_language_tab_allowed_by_kivicare",
                 "true"
               );
-              console.log(
-                "Medico Contigo: ✅ FLAG SET (label click) - Allowing language tab activation"
-              );
-              console.log(
-                "Medico Contigo: Flag value:",
-                sessionStorage.getItem("mc_language_tab_allowed_by_kivicare")
-              );
+
+              self.logState("AFTER service selection (label)");
             }
           }
         }
@@ -316,8 +450,6 @@
         "click",
         '#language-tab, a[href="#language"]',
         function (e) {
-          console.log("Medico Contigo: Language tab clicked");
-
           // Small delay to ensure tab panel is visible
           setTimeout(function () {
             self.loadLanguagesForTab();
@@ -330,7 +462,6 @@
         "shown.bs.tab shown.iq.tab",
         '#language-tab, a[href="#language"]',
         function () {
-          console.log("Medico Contigo: Language tab shown");
           self.loadLanguagesForTab();
         }
       );
@@ -348,9 +479,6 @@
                 languagePanel.is(":visible") &&
                 languagePanel.hasClass("active")
               ) {
-                console.log(
-                  "Medico Contigo: Language panel became visible (MutationObserver)"
-                );
                 self.loadLanguagesForTab();
               }
             }
@@ -378,17 +506,11 @@
       // Check if language panel is visible
       var languagePanel = $("#language");
       if (!languagePanel.is(":visible")) {
-        console.log(
-          "Medico Contigo: Language panel not visible yet, skipping load"
-        );
         return;
       }
 
       // Check if we have a selected service
       if (!this.selectedService) {
-        console.warn(
-          "Medico Contigo: No service selected, cannot load languages"
-        );
         $("#mc-language-loader, #language_loader").hide();
         $("#mc-language-cards")
           .html(
@@ -400,17 +522,11 @@
 
       // Check if languages already loaded
       if ($("#mc-language-cards .mc-language-card").length > 0) {
-        console.log("Medico Contigo: Languages already loaded");
         // Hide loader if languages are already there
         $("#mc-language-loader, #language_loader").hide();
         $("#mc-language-cards").css("display", "flex");
         return;
       }
-
-      console.log(
-        "Medico Contigo: Loading languages for service:",
-        this.selectedService
-      );
 
       // Show loader, hide cards (with explicit inline styles to override CSS)
       $("#mc-language-loader, #language_loader").css("display", "flex").show();
@@ -425,15 +541,11 @@
           service_id: self.selectedService,
         },
         success: function (response) {
-          console.log("Medico Contigo: Language AJAX response:", response);
-
           // ✅ FIX: FORCE hide loader with inline style
           $("#mc-language-loader, #language_loader")
             .css("display", "none")
             .hide()
             .attr("style", "display: none !important;");
-
-          console.log("Medico Contigo: ✅ Loading spinner forcefully hidden");
 
           // Extract languages from response
           var languages = null;
@@ -447,8 +559,6 @@
               languages = response.data;
             }
           }
-
-          console.log("Medico Contigo: Extracted languages:", languages);
 
           if (languages && languages.length > 0) {
             var cards = "";
@@ -469,14 +579,7 @@
               .html(cards)
               .css("display", "flex")
               .fadeIn(300);
-
-            console.log(
-              "Medico Contigo: ✅ " +
-                languages.length +
-                " language cards displayed"
-            );
           } else {
-            console.warn("Medico Contigo: No languages found");
             $("#mc-language-cards")
               .html(
                 '<p style="text-align: center; padding: 40px; color: #999;">No languages configured for this service.</p>'
@@ -486,8 +589,6 @@
           }
         },
         error: function (xhr, status, error) {
-          console.error("Medico Contigo: AJAX error:", error);
-
           // ✅ FIX: Hide loader on error too (with inline style)
           $("#mc-language-loader, #language_loader")
             .css("display", "none")
@@ -514,7 +615,7 @@
         var langCode = $(this).data("lang-code");
         var langName = $(this).data("lang-name");
 
-        console.log("Medico Contigo: Language selected:", langCode, langName);
+        console.log("🌐 LANGUAGE SELECTED:", langName, "(" + langCode + ")");
 
         // Visual feedback
         $(".mc-language-card").removeClass("selected");
@@ -524,14 +625,11 @@
         self.selectedLanguage = langCode;
         $("#mc-selected-language").val(langCode);
 
+        self.logState("AFTER language selection");
+
         // ✅ NOW auto-assign doctor based on service + language
         if (self.selectedService && self.selectedLanguage) {
-          console.log(
-            "Medico Contigo: ⭐ Auto-assigning doctor for service:",
-            self.selectedService,
-            "language:",
-            self.selectedLanguage
-          );
+          console.log("🔄 Auto-assigning doctor for service:", self.selectedService, "language:", self.selectedLanguage);
           self.autoSelectDoctor(self.selectedService, self.selectedLanguage);
         }
 
@@ -539,10 +637,6 @@
         $("#language .iq-next-btn, #language .widget-next-btn")
           .prop("disabled", false)
           .css("opacity", "1");
-
-        console.log(
-          "Medico Contigo: ✅ Language selection complete, Next button enabled"
-        );
       });
     },
 
@@ -557,33 +651,27 @@
         "click",
         "#language .iq-next-btn, #language .widget-next-btn, #language button[type='submit'], #language button[type='button']",
         function (e) {
-          console.log("Medico Contigo: Next button clicked from language tab");
+          console.log("⏭️ NEXT BUTTON CLICKED on language tab");
 
           // ALWAYS prevent default form submission behavior
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
 
+          self.logState("Next button on language tab");
+
           if (!self.selectedLanguage) {
-            console.warn(
-              "Medico Contigo: ❌ Language not selected, blocking navigation"
-            );
+            console.log("⚠️ No language selected - showing alert");
             alert(
               "Por favor, selecciona un idioma antes de continuar.\n\nPlease select a language before continuing."
             );
             return false;
           }
 
-          console.log(
-            "Medico Contigo: ✅ Language selected, navigating to next step"
-          );
+          console.log("✅ Language selected, proceeding to next tab");
 
           // ✅ CRITICAL: Re-enforce doctor before navigating to date-time
           if (window.MC_SELECTED_DOCTOR) {
-            console.log(
-              "Medico Contigo: 🔒 Re-enforcing doctor before date-time tab:",
-              window.MC_SELECTED_DOCTOR
-            );
 
             // ✅ FIX: Ensure clinic_id is set
             var clinicId = window.bookAppointmentWidgetData?.preselected_clinic_id ||
@@ -609,25 +697,6 @@
 
             // ✅ CRITICAL: Inject into KiviCare's bookAppointmentWidgetData BEFORE navigating
             self.injectDoctorIntoBookingData(window.MC_SELECTED_DOCTOR);
-
-            console.log(
-              "Medico Contigo: ✅ All doctor fields set to:",
-              window.MC_SELECTED_DOCTOR
-            );
-            console.log(
-              "Medico Contigo: ✅ All clinic fields set to:",
-              clinicId
-            );
-
-            // Debug: Show all doctor-related fields
-            $("input[name*='doctor'], input[name*='clinic']").each(function () {
-              console.log(
-                "Medico Contigo: Field",
-                $(this).attr("name"),
-                "=",
-                $(this).val()
-              );
-            });
           }
 
           // ✅ FIX: Find and activate the next tab more reliably
@@ -641,10 +710,6 @@
             var $nextTabLink = $nextTabLi.find("a");
 
             if ($nextTabLink.length > 0) {
-              console.log(
-                "Medico Contigo: Found next tab (Method 1):",
-                $nextTabLink.attr("href")
-              );
               $nextTabLink.trigger("click");
               nextTabActivated = true;
             }
@@ -654,9 +719,6 @@
           if (!nextTabActivated) {
             var $datetimeTab = $('a[href="#datetime"], #datetime-tab');
             if ($datetimeTab.length > 0) {
-              console.log(
-                "Medico Contigo: Found datetime tab (Method 2 - direct)"
-              );
               $datetimeTab.trigger("click");
               nextTabActivated = true;
             }
@@ -679,52 +741,79 @@
 
             if (currentIndex >= 0 && currentIndex < $allTabs.length - 1) {
               var $nextTab = $allTabs.eq(currentIndex + 1);
-              console.log(
-                "Medico Contigo: Found next tab (Method 3):",
-                $nextTab.attr("href")
-              );
               $nextTab.trigger("click");
               nextTabActivated = true;
             }
-          }
-
-          if (!nextTabActivated) {
-            console.error(
-              "Medico Contigo: ❌ Could not find next tab to activate!"
-            );
           }
 
           return false;
         }
       );
 
-      // Also intercept direct tab clicks trying to skip language
+      // Only intercept tab clicks to enforce language selection requirement
       $(document).on("click", ".tab-link, .tab-item a", function (e) {
         var targetTab = $(this).attr("href");
 
-        // If trying to go to date-time or later without selecting language
+        if (!targetTab || !targetTab.startsWith("#")) {
+          return; // Not a tab link
+        }
+
+        // Get current active tab
+        var $activePanel = $(".iq-tab-pannel.active");
+        var currentTabId = $activePanel.attr("id");
+
+        // Get tab order/index for both current and target tabs
+        var $allTabLinks = $(".tab-item a, .tab-link");
+        var currentIndex = -1;
+        var targetIndex = -1;
+
+        $allTabLinks.each(function(index) {
+          var href = $(this).attr("href");
+          if (href === "#" + currentTabId) {
+            currentIndex = index;
+          }
+          if (href === targetTab) {
+            targetIndex = index;
+          }
+        });
+
+        // Allow clicking on previous tabs (going backwards)
+        if (targetIndex >= 0 && currentIndex >= 0 && targetIndex < currentIndex) {
+          return; // Allow the click
+        }
+
+        // ONLY BLOCK: If trying to go forward without selecting language
         if (self.selectedService && !self.selectedLanguage) {
           if (
             targetTab &&
             targetTab !== "#category" &&
             targetTab !== "#language"
           ) {
-            console.warn(
-              "Medico Contigo: ❌ Attempting to skip language tab, blocking"
-            );
+            console.log("🚫 BLOCKED TAB NAVIGATION - Language not selected");
+            console.log("   Tried to go to:", targetTab);
+            self.logState("Tab navigation blocked");
+
             e.preventDefault();
             e.stopPropagation();
 
             // Show language tab instead
             var $languageTab = $('#language-tab, a[href="#language"]');
             if ($languageTab.length > 0) {
+              console.log("   Redirecting to language tab");
               $languageTab.trigger("click");
             }
 
             return false;
           }
         }
+
+        // Let KiviCare handle all other navigation naturally
+        console.log("✅ ALLOWING TAB NAVIGATION to:", targetTab);
       });
+
+      // ✅ REMOVED: This code was too aggressive and broke KiviCare's native tab navigation
+      // Only intercept language tab specifically (handled above)
+      // Let KiviCare handle all other tab navigation naturally
 
       // ✅ FIX: CRITICAL - Prevent form submission when on language tab (STRONGEST PREVENTION)
       $(document).on("submit", "form", function (e) {
@@ -732,9 +821,6 @@
         var isLanguageTabActive = $activeTab.attr("id") === "language";
 
         if (isLanguageTabActive) {
-          console.warn(
-            "Medico Contigo: 🚫 BLOCKING form submission - Still on language tab!"
-          );
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -745,9 +831,6 @@
             );
           } else {
             // If language is selected, navigate to next tab instead
-            console.log(
-              "Medico Contigo: Language selected, navigating instead of submitting"
-            );
             $("#language .iq-next-btn, #language .widget-next-btn")
               .first()
               .trigger("click");
@@ -758,11 +841,6 @@
 
         // ✅ CRITICAL: Before ANY form submission, inject MC_SELECTED_DOCTOR
         if (window.MC_SELECTED_DOCTOR) {
-          console.log(
-            "Medico Contigo: 🔒 Injecting MC_SELECTED_DOCTOR into form:",
-            window.MC_SELECTED_DOCTOR
-          );
-
           // Add as hidden field if not exists
           if ($("input[name='MC_SELECTED_DOCTOR']").length === 0) {
             $(this).append(
@@ -780,9 +858,6 @@
           $("input[name='doctor_id'], input[name='appointment_doctor_id']").val(
             window.MC_SELECTED_DOCTOR
           );
-          console.log(
-            "Medico Contigo: ✅ Doctor fields enforced before submission"
-          );
         }
       });
 
@@ -792,17 +867,11 @@
 
         // If it's a submit button, convert it to navigation
         if (buttonType === "submit" || !buttonType) {
-          console.log(
-            "Medico Contigo: Button in language tab clicked, preventing submission"
-          );
           e.preventDefault();
           e.stopPropagation();
 
           // Check if language is selected
           if (self.selectedLanguage) {
-            console.log(
-              "Medico Contigo: Language selected, navigating to next tab"
-            );
             // This will trigger the navigation logic above
           } else {
             alert(
@@ -822,11 +891,6 @@
      * ✅ CRITICAL: Inject doctor into KiviCare's bookAppointmentWidgetData
      */
     injectDoctorIntoBookingData: function (doctorId) {
-      console.log(
-        "Medico Contigo: 🔧 Injecting doctor into bookAppointmentWidgetData:",
-        doctorId
-      );
-
       // CRITICAL: Set in bookAppointmentWidgetData (KiviCare's global data object)
       if (typeof window.bookAppointmentWidgetData !== "undefined") {
         // ✅ FIX: Ensure clinic_id is set (default to 1 if not present)
@@ -846,26 +910,6 @@
 
         // ✅ CRITICAL: Force boolean TRUE (not string "true", not 1, but actual boolean)
         window.bookAppointmentWidgetData.preselected_single_doctor_id = Boolean(true);
-
-        console.log(
-          "Medico Contigo: ✅ Set doctor in bookAppointmentWidgetData"
-        );
-        console.log(
-          "Medico Contigo: preselected_doctor =",
-          window.bookAppointmentWidgetData.preselected_doctor,
-          "(type:", typeof window.bookAppointmentWidgetData.preselected_doctor + ")"
-        );
-        console.log(
-          "Medico Contigo: preselected_single_doctor_id =",
-          window.bookAppointmentWidgetData.preselected_single_doctor_id,
-          "(type:", typeof window.bookAppointmentWidgetData.preselected_single_doctor_id + ")"
-        );
-        console.log(
-          "Medico Contigo: clinic_id =",
-          window.bookAppointmentWidgetData.clinic_id
-        );
-      } else {
-        console.warn("Medico Contigo: ⚠️ bookAppointmentWidgetData not found");
       }
     },
 
@@ -874,7 +918,6 @@
      */
     triggerDateTimeLoad: function () {
       var self = this;
-      console.log("Medico Contigo: 🔄 Triggering date-time content load");
 
       // Find the widget container (could be #widgetOrders, .kivi-widget, etc.)
       var $widgetContainer = $("#date-time").closest(
@@ -885,8 +928,6 @@
           ? "#" + $widgetContainer.attr("id")
           : "#widgetOrders";
 
-      console.log("Medico Contigo: Widget container:", containerSelector);
-
       // ✅ CRITICAL: Wait for KiviCare to fully initialize
       var attemptLoad = function(attempt) {
         attempt = attempt || 1;
@@ -894,38 +935,24 @@
         if (typeof window.kcAppointmentBookJsContent === "function") {
           try {
             // Re-initialize the widget's date-time tab with the doctor set
-            console.log("Medico Contigo: Calling kcAppointmentBookJsContent (attempt " + attempt + ")");
             window.kcAppointmentBookJsContent(containerSelector);
-            console.log(
-              "Medico Contigo: ✅ kcAppointmentBookJsContent('" +
-                containerSelector +
-                "') called successfully"
-            );
 
             // Verify it worked by checking if the internal functions now exist
             setTimeout(function() {
               if (typeof window.kivicareGetDoctorWeekday !== 'function') {
-                console.warn("Medico Contigo: ⚠️ KiviCare didn't initialize properly, trying manual reload");
                 self.manualDateTimeLoad();
-              } else {
-                console.log("Medico Contigo: ✅ KiviCare initialized successfully!");
               }
             }, 500);
 
           } catch (e) {
-            console.warn(
-              "Medico Contigo: Error calling kcAppointmentBookJsContent:",
-              e
-            );
+            // Error calling kcAppointmentBookJsContent
           }
         } else if (attempt < 5) {
           // Retry up to 5 times with 200ms delay
-          console.log("Medico Contigo: kcAppointmentBookJsContent not ready, retrying in 200ms... (attempt " + attempt + "/5)");
           setTimeout(function() {
             attemptLoad(attempt + 1);
           }, 200);
         } else {
-          console.warn("Medico Contigo: ⚠️ kcAppointmentBookJsContent not found after 5 attempts, using fallback");
           self.manualDateTimeLoad();
         }
       };
@@ -938,10 +965,7 @@
      * ✅ Manual date-time loading when KiviCare function isn't available
      */
     manualDateTimeLoad: function() {
-      console.log("Medico Contigo: 🔧 Using manual date-time loading");
-
       if (!window.MC_SELECTED_DOCTOR || !window.bookAppointmentWidgetData) {
-        console.error("Medico Contigo: ❌ Cannot load date-time: missing doctor or widget data");
         return;
       }
 
@@ -952,10 +976,6 @@
                      1;
 
       var containerSelector = "#widgetOrders";
-
-      console.log("Medico Contigo: 🔧 Manual load parameters:");
-      console.log("  doctor_id:", window.MC_SELECTED_DOCTOR);
-      console.log("  clinic_id:", clinicId);
 
       // Show loader
       $(containerSelector + " #doctor-datepicker-loader").removeClass("d-none");
@@ -972,19 +992,10 @@
           _ajax_nonce: window.bookAppointmentWidgetData.ajax_get_nonce,
         },
         success: function (response) {
-          console.log(
-            "Medico Contigo: ✅ Doctor weekdays loaded via manual method:",
-            response
-          );
           // Hide loader
           $(containerSelector + " #doctor-datepicker-loader").addClass("d-none");
         },
         error: function (xhr, status, error) {
-          console.error(
-            "Medico Contigo: ❌ Manual AJAX error:",
-            error,
-            "xhr:", xhr.responseText
-          );
           $(containerSelector + " #doctor-datepicker-loader").addClass("d-none");
         },
       });
@@ -994,43 +1005,31 @@
      * ✅ DEPRECATED: Old Vue injection (not needed - KiviCare doesn't use Vue)
      */
     injectDoctorIntoVueComponent: function (doctorId) {
-      console.log(
-        "Medico Contigo: 🔧 Injecting doctor into Vue/React component:",
-        doctorId
-      );
-
       // Method 1: Set in window.kiviCareBooking global
       if (typeof window.kiviCareBooking !== "undefined") {
-        console.log("Medico Contigo: Found kiviCareBooking object");
         window.kiviCareBooking.doctor_id = doctorId;
         window.kiviCareBooking.selectedDoctor = doctorId;
         window.kiviCareBooking.appointment_doctor_id = doctorId;
-        console.log("Medico Contigo: ✅ Set doctor in kiviCareBooking");
       }
 
       // Method 2: Try to find Vue instance on date-time element
       var $dateTime = $("#date-time");
       if ($dateTime.length > 0 && $dateTime[0].__vue__) {
-        console.log("Medico Contigo: Found Vue instance on date-time");
         var vueInstance = $dateTime[0].__vue__;
         if (vueInstance.$data) {
           vueInstance.$data.doctor_id = doctorId;
           vueInstance.$data.selectedDoctor = doctorId;
-          console.log("Medico Contigo: ✅ Set doctor in Vue $data");
         }
         if (vueInstance.$set) {
           vueInstance.$set(vueInstance, "doctor_id", doctorId);
-          console.log("Medico Contigo: ✅ Used Vue $set for doctor");
         }
       }
 
       // Method 3: Set in any global Vue app
       if (typeof window.Vue !== "undefined" && window.Vue._instance) {
-        console.log("Medico Contigo: Found global Vue instance");
         if (window.Vue._instance.$data) {
           window.Vue._instance.$data.doctor_id = doctorId;
           window.Vue._instance.$data.selectedDoctor = doctorId;
-          console.log("Medico Contigo: ✅ Set doctor in global Vue");
         }
       }
 
@@ -1038,9 +1037,8 @@
       try {
         localStorage.setItem("kc_selected_doctor", doctorId);
         localStorage.setItem("mc_doctor_id", doctorId);
-        console.log("Medico Contigo: ✅ Set doctor in localStorage");
       } catch (e) {
-        console.warn("Medico Contigo: Could not set localStorage");
+        // Could not set localStorage
       }
 
       // Method 5: Dispatch custom events that components might listen to
@@ -1050,12 +1048,10 @@
       });
       document.dispatchEvent(event);
       $("#date-time")[0]?.dispatchEvent(event);
-      console.log("Medico Contigo: ✅ Dispatched kcDoctorSelected event");
 
       // Method 6: Try to set via data attributes
       $("#date-time").attr("data-doctor-id", doctorId);
       $("#date-time form").attr("data-doctor-id", doctorId);
-      console.log("Medico Contigo: ✅ Set data-doctor-id attributes");
     },
 
     /**
@@ -1078,12 +1074,6 @@
         $doctorFields.each(function () {
           var currentVal = $(this).val();
           if (currentVal != doctorId && currentVal !== "") {
-            console.warn(
-              "Medico Contigo: 🛡️ Prevented doctor override! Restoring:",
-              doctorId,
-              "(was:",
-              currentVal + ")"
-            );
             $(this).val(doctorId);
           }
         });
@@ -1095,10 +1085,6 @@
             String(doctorId) ||
             window.bookAppointmentWidgetData.preselected_single_doctor_id !== true
           ) {
-            console.warn(
-              "Medico Contigo: 🛡️ Prevented bookAppointmentWidgetData override! Restoring:",
-              doctorId
-            );
             window.bookAppointmentWidgetData.doctor_id = doctorId;
             window.bookAppointmentWidgetData.appointment_doctor_id = doctorId;
             window.bookAppointmentWidgetData.selectedDoctor = doctorId;
@@ -1114,18 +1100,12 @@
       setTimeout(function () {
         if (self.doctorLockInterval) {
           clearInterval(self.doctorLockInterval);
-          console.log("Medico Contigo: Doctor lock released after 30s");
         }
       }, 30000);
     },
 
     autoSelectDoctor: function (serviceId, language) {
       var self = this;
-
-      console.log(
-        "Medico Contigo: Auto-selecting doctor for service:",
-        serviceId
-      );
 
       $.ajax({
         url: ajax_object.ajax_url,
@@ -1139,8 +1119,6 @@
           if (response.success && response.data && response.data.doctor_id) {
             var doctorId = response.data.doctor_id;
             self.selectedDoctor = doctorId;
-
-            console.log("Medico Contigo: ✅ Doctor auto-selected:", doctorId);
 
             // ✅ CRITICAL: Set doctor in ALL possible field names
             $("input[name='doctor_id']").val(doctorId);
@@ -1161,12 +1139,10 @@
 
             // ✅ PROTECTION: Lock the doctor value and prevent overrides
             self.lockDoctorSelection(doctorId);
-
-            console.log("Medico Contigo: 🔒 Doctor locked to:", doctorId);
           }
         },
         error: function (xhr, status, error) {
-          console.error("Medico Contigo: Doctor auto-select error:", error);
+          // Doctor auto-select error
         },
       });
     },
@@ -1190,17 +1166,11 @@
             var isLanguageTabActive = $activeTab.attr("id") === "language";
 
             if (isLanguageTabActive) {
-              console.warn(
-                "Medico Contigo: 🚫🚫🚫 CAPTURE PHASE - BLOCKING form submission!"
-              );
               e.preventDefault();
               e.stopPropagation();
               e.stopImmediatePropagation();
 
               if (self.selectedLanguage) {
-                console.log(
-                  "Medico Contigo: Navigating to next tab instead of submitting"
-                );
                 setTimeout(function () {
                   $("#language .iq-next-btn, #language .widget-next-btn")
                     .first()
@@ -1226,9 +1196,6 @@
             var isLanguageTabActive = $activeTab.attr("id") === "language";
 
             if (isLanguageTabActive) {
-              console.warn(
-                "Medico Contigo: 🚫 BUBBLE PHASE - BLOCKING form submission!"
-              );
               e.preventDefault();
               e.stopPropagation();
               e.stopImmediatePropagation();
@@ -1239,11 +1206,9 @@
         ); // FALSE = bubble phase
       });
 
-      console.log(
-        "Medico Contigo: ✅ Capture phase blockers installed on",
-        forms.length,
-        "forms"
-      );
+      // ✅ REMOVED: Overly aggressive capture phase click listener
+      // This was preventing KiviCare's natural tab navigation
+      // Let KiviCare handle tab order based on its widget settings
     },
 
     /**
@@ -1256,9 +1221,6 @@
       // Function to convert buttons
       function convertButtons() {
         $('#language button[type="submit"]').each(function () {
-          console.log(
-            "Medico Contigo: Converting submit button to regular button"
-          );
           $(this).attr("type", "button");
           $(this).attr("data-original-type", "submit"); // Store original type
         });
@@ -1279,8 +1241,6 @@
           setTimeout(convertButtons, 500);
         }
       );
-
-      console.log("Medico Contigo: ✅ Submit button converter installed");
     },
 
     /**
@@ -1305,10 +1265,6 @@
             // Save original action if not saved yet
             if (!originalAction) {
               originalAction = $form.attr("action");
-              console.log(
-                "Medico Contigo: Saved original form action:",
-                originalAction
-              );
             }
 
             // Disable form submission by removing action and method
@@ -1321,20 +1277,15 @@
             // Restore original action when leaving language tab
             $form.attr("action", originalAction);
             $form.removeAttr("data-mc-blocked");
-            console.log("Medico Contigo: Restored form action");
           }
         }
       }, 100);
-
-      console.log("Medico Contigo: ✅ Form action disabler installed");
     },
   };
 
   // ✅ ULTIMATE FIREWALL: Global form submission blocker (runs BEFORE everything)
   // This uses native DOM Level 0 event handlers which fire FIRST
   (function installGlobalFirewall() {
-    console.log("Medico Contigo: Installing ULTIMATE form submission firewall");
-
     // Hook into HTMLFormElement.prototype.submit to block programmatic submissions
     var originalSubmit = HTMLFormElement.prototype.submit;
     HTMLFormElement.prototype.submit = function () {
@@ -1342,9 +1293,6 @@
       var isLanguageTabActive = $activeTab.attr("id") === "language";
 
       if (isLanguageTabActive) {
-        console.error(
-          "Medico Contigo: 🚫 FIREWALL BLOCKED programmatic form.submit() on language tab!"
-        );
         return false;
       }
 
@@ -1359,17 +1307,11 @@
         var isLanguageTabActive = $activeTab.attr("id") === "language";
 
         if (isLanguageTabActive) {
-          console.error(
-            "Medico Contigo: 🚫🚫🚫 DOCUMENT-LEVEL FIREWALL BLOCKED form submission!"
-          );
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
 
           if (MC_Booking.selectedLanguage) {
-            console.log(
-              "Medico Contigo: Language selected, will navigate to next tab"
-            );
             setTimeout(function () {
               jQuery("#language .iq-next-btn, #language .widget-next-btn")
                 .first()
@@ -1386,8 +1328,6 @@
       },
       true
     ); // TRUE = capture phase (fires FIRST!)
-
-    console.log("Medico Contigo: ✅ ULTIMATE firewall installed successfully");
   })();
 
   // Initialize when DOM is ready

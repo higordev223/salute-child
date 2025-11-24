@@ -137,6 +137,24 @@ function mc_hide_doctor_selection_css() {
         pointer-events: auto !important;
     }
 
+    /* CRITICAL: Force category (service selection) panel to always be visible when active */
+    #category.iq-tab-pannel.active,
+    .iq-tab-pannel#category.active,
+    div#category.active {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        height: auto !important;
+        max-height: none !important;
+        min-height: 200px !important;
+        overflow: visible !important;
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        pointer-events: auto !important;
+        z-index: 1 !important;
+    }
+
     /* NUCLEAR OPTION: Maximum specificity for inactive language panel */
     html body #wizard-tab .iq-tab-pannel#language:not(.active),
     html body .tab-content .iq-tab-pannel#language:not(.active),
@@ -193,39 +211,6 @@ function mc_hide_doctor_selection_js() {
             setTimeout(hideDoctorTab, 500);
             setTimeout(hideDoctorTab, 1000);
             setTimeout(hideDoctorTab, 2000);
-
-            // DEBUGGING: Check tab panel visibility on load
-            setTimeout(function() {
-                console.log("\n=== MEDICO CONTIGO TAB VISIBILITY DEBUG ===");
-                jQuery('.iq-tab-pannel').each(function() {
-                    var $panel = jQuery(this);
-                    var panelId = $panel.attr('id') || 'unknown';
-                    var hasActive = $panel.hasClass('active');
-                    var isVisible = $panel.is(':visible');
-                    var computedDisplay = window.getComputedStyle(this).display;
-                    var inlineStyle = $panel.attr('style') || 'none';
-
-                    console.log("\nPanel: #" + panelId);
-                    console.log("  Has .active class: " + hasActive);
-                    console.log("  jQuery :visible: " + isVisible);
-                    console.log("  Computed display: " + computedDisplay);
-                    console.log("  Inline styles: " + inlineStyle);
-
-                    // Log all classes
-                    console.log("  All classes: " + ($panel.attr('class') || 'none'));
-
-                    if (!hasActive && isVisible) {
-                        console.warn("  ⚠️ WARNING: Panel is VISIBLE but should be HIDDEN!");
-                    } else if (!hasActive && !isVisible) {
-                        console.log("  ✓ Correctly hidden (inactive)");
-                    } else if (hasActive && isVisible) {
-                        console.log("  ✓ Correctly visible (active)");
-                    } else if (hasActive && !isVisible) {
-                        console.warn("  ⚠️ WARNING: Panel is ACTIVE but NOT visible!");
-                    }
-                });
-                console.log("\n=== END DEBUG ===\n");
-            }, 1500);
         });
 
         // Watch for mutations
@@ -367,12 +352,6 @@ function mc_intercept_appointment_save($result, $server, $request) {
     // Check if this is the appointment save endpoint
     $route = $request->get_route();
     
-    // 🔍 DEBUG: Log ALL KiviCare API requests
-    if (strpos($route, 'kivicare') !== false || strpos($route, 'kc') !== false) {
-        error_log("Medico Contigo: 🔍 KiviCare API call: " . $route);
-        error_log("Medico Contigo: Parameters: " . print_r($request->get_params(), true));
-    }
-    
     if (strpos($route, '/book-appointment/save-appointment') !== false || 
         strpos($route, '/appointment/save') !== false) {
         
@@ -381,15 +360,10 @@ function mc_intercept_appointment_save($result, $server, $request) {
             $params = $request->get_body_params();
         }
         
-        error_log("Medico Contigo: Appointment save intercepted");
-        error_log("Medico Contigo: Incoming doctor_id: " . print_r($params['doctor_id'] ?? 'NOT SET', true));
-        
         // Check if we have the MC_SELECTED_DOCTOR from JavaScript
         $stored_doctor = isset($_REQUEST['MC_SELECTED_DOCTOR']) ? intval($_REQUEST['MC_SELECTED_DOCTOR']) : null;
         
         if ($stored_doctor) {
-            error_log("Medico Contigo: 🔒 Enforcing stored doctor from JS: " . $stored_doctor);
-            
             $time_slot = mc_get_doctor_time_slot($stored_doctor);
             
             $params['doctor_id'] = [
@@ -400,8 +374,6 @@ function mc_intercept_appointment_save($result, $server, $request) {
             // Update request params
             $request->set_body_params($params);
             $request->set_param('doctor_id', $params['doctor_id']);
-            
-            error_log("Medico Contigo: ✅ Doctor enforced: " . $stored_doctor);
         }
         // If doctor_id is not set or empty, auto-assign
         elseif (empty($params['doctor_id']) || !isset($params['doctor_id']['id'])) {
@@ -410,8 +382,6 @@ function mc_intercept_appointment_save($result, $server, $request) {
             $language = isset($params['appointment_language']) ? $params['appointment_language'] : null;
             $date = isset($params['appointment_start_date']) ? $params['appointment_start_date'] : null;
             $time = isset($params['appointment_start_time']) ? $params['appointment_start_time'] : null;
-            
-            error_log("Medico Contigo: No doctor set, auto-assigning...");
             
             if ($service_id && $date && $time) {
                 $doctor_id = mc_find_best_available_doctor($service_id, $language, $date, $time);
@@ -428,12 +398,8 @@ function mc_intercept_appointment_save($result, $server, $request) {
                     // Update request params
                     $request->set_body_params($params);
                     $request->set_param('doctor_id', $params['doctor_id']);
-                    
-                    error_log("Medico Contigo: ✅ Auto-assigned doctor: " . $doctor_id);
                 }
             }
-        } else {
-            error_log("Medico Contigo: Doctor already set in params: " . print_r($params['doctor_id'], true));
         }
     }
     
@@ -643,13 +609,7 @@ function mc_doctor_has_clinic_sessions($doctor_id) {
         $doctor_id
     ));
     
-    if ($session_count > 0) {
-        error_log("Medico Contigo: Doctor $doctor_id has $session_count clinic session(s)");
-        return true;
-    }
-    
-    error_log("Medico Contigo: Doctor $doctor_id has NO clinic sessions");
-    return false;
+    return $session_count > 0;
 }
 
 /**
@@ -689,7 +649,6 @@ function mc_get_first_available_doctor() {
             // ✅ FIX: Check if doctor speaks language AND has clinic sessions
             if (mc_doctor_speaks_language($doctor_id, $language) && mc_doctor_has_clinic_sessions($doctor_id)) {
                 $selected_doctor = $doctor_id;
-                error_log("Medico Contigo: Auto-assigned doctor $doctor_id (language: $language, has sessions)");
                 break;
             }
         }
@@ -703,7 +662,6 @@ function mc_get_first_available_doctor() {
             // ✅ FIX: Only assign doctors who have clinic sessions configured
             if (mc_doctor_has_clinic_sessions($doctor_id)) {
                 $selected_doctor = $doctor_id;
-                error_log("Medico Contigo: Auto-assigned doctor $doctor_id (no language filter, has sessions)");
                 break;
             }
         }
@@ -718,7 +676,6 @@ function mc_get_first_available_doctor() {
             'message' => 'Doctor auto-selected with active clinic sessions'
         ]);
     } else {
-        error_log("Medico Contigo: ERROR - No doctors with clinic sessions available for service $service_id");
         wp_send_json_error(['message' => 'No doctors with available clinic sessions for this service. Please contact support.']);
     }
 }

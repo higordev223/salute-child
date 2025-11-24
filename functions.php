@@ -21,7 +21,7 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '4.1.1', // v4.1.1 - CRITICAL FIX: Force boolean true (not empty string) for preselected_single_doctor_id
+        '4.2.8', // v4.2.8 - FIX: Auto-activate register tab when detail-info panel becomes active
         true
     );
     
