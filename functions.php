@@ -21,7 +21,7 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '4.2.8', // v4.2.8 - FIX: Auto-activate register tab when detail-info panel becomes active
+        '4.2.9', // v4.2.9 - FIX: Retry logic + manual reCAPTCHA initialization when auto-activating register tab
         true
     );
     

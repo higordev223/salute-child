@@ -176,22 +176,99 @@
 
                 // ✅ FIX: When detail-info (login/register) tab activates, ensure register tab is shown
                 if (targetId === 'detail-info' || targetId === 'kc_register') {
-                  setTimeout(function() {
-                    console.log("📝 Activating register tab within detail-info panel");
+                  // Use retry logic to wait for KiviCare to fully initialize the login/register tabs
+                  var attempts = 0;
+                  var maxAttempts = 10;
 
-                    // Find and click the register tab link
-                    var $registerTabLink = $('#detail-info .kc-tab-link[href="#kc_register"], #detail-info a[href="#kc_register"], .kc-tab-link[href="#kc_register"]');
+                  function tryActivateRegisterTab() {
+                    attempts++;
+                    console.log("📝 Attempting to activate register tab (attempt " + attempts + "/" + maxAttempts + ")");
+
+                    // Look for register tab link with multiple selectors
+                    var $registerTabLink = $(
+                      '#detail-info .kc-tab-link[href="#kc_register"], ' +
+                      '#detail-info a[href="#kc_register"], ' +
+                      '.kc-tab-link[href="#kc_register"], ' +
+                      'a.kc-tab-link[data-target="#kc_register"], ' +
+                      '[data-bs-target="#kc_register"], ' +
+                      'button[data-bs-target="#kc_register"]'
+                    );
 
                     if ($registerTabLink.length > 0) {
-                      console.log("   Found register tab link, clicking it");
-                      $registerTabLink.trigger('click');
+                      console.log("   ✅ Found register tab link, clicking it");
+
+                      // Click the tab to trigger KiviCare's initialization
+                      $registerTabLink.first().trigger('click');
+
+                      // Also trigger Bootstrap tab events if they exist
+                      if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+                        try {
+                          var tab = new bootstrap.Tab($registerTabLink[0]);
+                          tab.show();
+                        } catch(e) {
+                          console.log("   Bootstrap Tab not available:", e.message);
+                        }
+                      }
+
+                      // Wait for reCAPTCHA to initialize
+                      setTimeout(function() {
+                        // Check if reCAPTCHA loaded
+                        if (typeof grecaptcha !== 'undefined' && typeof grecaptcha.render === 'function') {
+                          console.log("   🔐 reCAPTCHA available, checking if it needs initialization");
+
+                          // Look for reCAPTCHA container
+                          var $recaptchaContainer = $('#kc_register .g-recaptcha, #kc_register [data-sitekey]');
+                          if ($recaptchaContainer.length > 0 && $recaptchaContainer.children().length === 0) {
+                            console.log("   🔄 Initializing reCAPTCHA manually");
+                            try {
+                              var sitekey = $recaptchaContainer.attr('data-sitekey');
+                              if (sitekey) {
+                                grecaptcha.render($recaptchaContainer[0], {
+                                  'sitekey': sitekey
+                                });
+                                console.log("   ✅ reCAPTCHA initialized successfully");
+                              }
+                            } catch(e) {
+                              console.log("   ⚠️ reCAPTCHA initialization error:", e.message);
+                            }
+                          } else {
+                            console.log("   ℹ️ reCAPTCHA already initialized or no container found");
+                          }
+                        } else {
+                          console.log("   ⚠️ reCAPTCHA not loaded on page");
+                        }
+                      }, 500);
+
+                    } else if (attempts < maxAttempts) {
+                      // Tab not found yet, retry
+                      console.log("   ⏳ Register tab not found yet, retrying in 200ms...");
+                      setTimeout(tryActivateRegisterTab, 200);
                     } else {
-                      // Fallback: directly show register content
-                      console.log("   Register tab link not found, showing register panel directly");
-                      $('#kc_register').addClass('active').show();
-                      $('#kc_login').removeClass('active').hide();
+                      // Max attempts reached, use fallback
+                      console.log("   ⚠️ Max attempts reached, using fallback method");
+                      $('#kc_register').addClass('active show').css('display', 'block');
+                      $('#kc_login').removeClass('active show').css('display', 'none');
+
+                      // Try to initialize reCAPTCHA even with fallback
+                      setTimeout(function() {
+                        if (typeof grecaptcha !== 'undefined') {
+                          $('.g-recaptcha').each(function() {
+                            if ($(this).children().length === 0) {
+                              var sitekey = $(this).attr('data-sitekey');
+                              if (sitekey) {
+                                try {
+                                  grecaptcha.render(this, {'sitekey': sitekey});
+                                } catch(e) {}
+                              }
+                            }
+                          });
+                        }
+                      }, 500);
                     }
-                  }, 100);
+                  }
+
+                  // Start trying after a brief delay
+                  setTimeout(tryActivateRegisterTab, 300);
                 }
 
                 // Check if language selection is required
