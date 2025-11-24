@@ -597,18 +597,31 @@ function mc_get_doctor_time_slot($doctor_id) {
 }
 
 /**
- * ✅ Check if doctor has any clinic sessions configured
+ * ✅ Check if doctor has clinic sessions configured
+ * @param int $doctor_id Doctor ID to check
+ * @param int $clinic_id Optional clinic ID to check for specific clinic
  */
-function mc_doctor_has_clinic_sessions($doctor_id) {
+function mc_doctor_has_clinic_sessions($doctor_id, $clinic_id = null) {
     global $wpdb;
-    
-    // Check in correct table: kc_clinic_sessions
-    $session_count = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM {$wpdb->prefix}kc_clinic_sessions 
-        WHERE doctor_id = %d",
-        $doctor_id
-    ));
-    
+
+    // Build query based on whether clinic_id is provided
+    if ($clinic_id) {
+        // Check if doctor has sessions at the specific clinic
+        $session_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}kc_clinic_sessions
+            WHERE doctor_id = %d AND clinic_id = %d",
+            $doctor_id,
+            $clinic_id
+        ));
+    } else {
+        // Check if doctor has any sessions at all
+        $session_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}kc_clinic_sessions
+            WHERE doctor_id = %d",
+            $doctor_id
+        ));
+    }
+
     return $session_count > 0;
 }
 
@@ -619,63 +632,102 @@ function mc_doctor_has_clinic_sessions($doctor_id) {
 function mc_get_first_available_doctor() {
     $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : 0;
     $language = isset($_POST['language']) ? sanitize_text_field($_POST['language']) : '';
-    
+    $clinic_id = isset($_POST['clinic_id']) ? intval($_POST['clinic_id']) : 0;
+
     if (!$service_id) {
         wp_send_json_error(['message' => 'Service ID required']);
     }
-    
+
+    // ✅ FIX: If no clinic_id provided, try to get default clinic
+    if (!$clinic_id) {
+        global $wpdb;
+        // Get first active clinic
+        $clinic_id = $wpdb->get_var("SELECT id FROM {$wpdb->prefix}kc_clinics WHERE status = 1 LIMIT 1");
+
+        if (!$clinic_id) {
+            $clinic_id = 1; // Final fallback
+        }
+    }
+
     global $wpdb;
-    
+
     // Get all doctors who offer this service
     $doctors = $wpdb->get_results($wpdb->prepare(
-        "SELECT DISTINCT doctor_id, charges 
-        FROM {$wpdb->prefix}kc_service_doctor_mapping 
+        "SELECT DISTINCT doctor_id, charges
+        FROM {$wpdb->prefix}kc_service_doctor_mapping
         WHERE service_id = %d AND status = 1
         ORDER BY charges ASC",
         $service_id
     ));
-    
+
     if (empty($doctors)) {
         wp_send_json_error(['message' => 'No doctors available for this service']);
     }
-    
+
     // If language specified, try to find doctor with that language first
     $selected_doctor = null;
-    
+
     if ($language) {
         foreach ($doctors as $doctor) {
             $doctor_id = $doctor->doctor_id;
-            
-            // ✅ FIX: Check if doctor speaks language AND has clinic sessions
-            if (mc_doctor_speaks_language($doctor_id, $language) && mc_doctor_has_clinic_sessions($doctor_id)) {
+
+            // ✅ FIX: Check if doctor speaks language AND has clinic sessions at the specific clinic
+            if (mc_doctor_speaks_language($doctor_id, $language) && mc_doctor_has_clinic_sessions($doctor_id, $clinic_id)) {
                 $selected_doctor = $doctor_id;
                 break;
             }
         }
     }
-    
-    // If no language match or no language specified, find first doctor with sessions
+
+    // If no language match or no language specified, find first doctor with sessions at this clinic
     if (!$selected_doctor && !empty($doctors)) {
         foreach ($doctors as $doctor) {
             $doctor_id = $doctor->doctor_id;
-            
-            // ✅ FIX: Only assign doctors who have clinic sessions configured
-            if (mc_doctor_has_clinic_sessions($doctor_id)) {
+
+            // ✅ FIX: Only assign doctors who have clinic sessions configured at the specific clinic
+            if (mc_doctor_has_clinic_sessions($doctor_id, $clinic_id)) {
                 $selected_doctor = $doctor_id;
                 break;
             }
         }
     }
-    
+
     if ($selected_doctor) {
         $time_slot = mc_get_doctor_time_slot($selected_doctor);
-        
+
+        // Get doctor's name
+        $doctor_user = get_userdata($selected_doctor);
+        $doctor_name = $doctor_user ? $doctor_user->display_name : 'Doctor #' . $selected_doctor;
+
+        // ✅ DEBUG: Get session details for verification
+        $session_details = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}kc_clinic_sessions
+            WHERE doctor_id = %d AND clinic_id = %d",
+            $selected_doctor,
+            $clinic_id
+        ));
+
+        // ✅ DEBUG: Get doctor-clinic mapping
+        $doctor_clinic_mapping = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}kc_doctor_clinic_mappings
+            WHERE doctor_id = %d AND clinic_id = %d",
+            $selected_doctor,
+            $clinic_id
+        ));
+
         wp_send_json_success([
             'doctor_id' => $selected_doctor,
+            'doctor_name' => $doctor_name,
             'time_slot' => $time_slot,
-            'message' => 'Doctor auto-selected with active clinic sessions'
+            'clinic_id' => $clinic_id,
+            'message' => 'Doctor auto-selected with active clinic sessions',
+            'debug' => [
+                'session_count' => count($session_details),
+                'sessions' => $session_details,
+                'doctor_clinic_mapping' => $doctor_clinic_mapping
+            ]
         ]);
     } else {
-        wp_send_json_error(['message' => 'No doctors with available clinic sessions for this service. Please contact support.']);
+        wp_send_json_error(['message' => 'No doctors with available clinic sessions for this service at this clinic. Please contact support.']);
     }
 }

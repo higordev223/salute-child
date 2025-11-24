@@ -21,10 +21,10 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '4.2.9', // v4.2.9 - FIX: Retry logic + manual reCAPTCHA initialization when auto-activating register tab
+        '4.8.0', // v4.8.0 - FIX: Redirect to extra data tab when KiviCare skips it due to preselected_single_doctor_id
         true
     );
-    
+
     wp_localize_script('mc-booking-custom', 'ajax_object', array(
         'ajax_url' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('mc_booking_nonce')
