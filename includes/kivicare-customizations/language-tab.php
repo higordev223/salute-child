@@ -177,7 +177,7 @@ function mc_enqueue_language_tab_script() {
         ?>
         <script type="text/javascript">
         (function($) {
-            console.log("Medico Contigo: Language tab script loaded");
+            // console.log("Medico Contigo: Language tab script loaded");
 
             // Clear any previous session flags
             sessionStorage.setItem('mc_language_tab_clicked', 'false');
@@ -208,12 +208,12 @@ function mc_enqueue_language_tab_script() {
                 $('.iq-tab-pannel').not('#category').each(function() {
                     if ($(this).hasClass('active')) {
                         var panelId = $(this).attr('id');
-                        console.log("Medico Contigo: Removing .active from panel: " + panelId);
+                        // console.log("Medico Contigo: Removing .active from panel: " + panelId);
                         $(this).removeClass('active');
                     }
                 });
 
-                console.log("Medico Contigo: Tab visibility initialized - only #category should be active");
+                // console.log("Medico Contigo: Tab visibility initialized - only #category should be active");
                 return true;
             }
 
@@ -242,9 +242,9 @@ function mc_enqueue_language_tab_script() {
 
                 // Log current state for debugging
                 if (!$('#language').hasClass('active')) {
-                    console.log("Medico Contigo: Language panel correctly hidden (no active class)");
+                    // console.log("Medico Contigo: Language panel correctly hidden (no active class)");
                 } else {
-                    console.log("Medico Contigo: Language panel is ACTIVE and visible");
+                    // console.log("Medico Contigo: Language panel is ACTIVE and visible");
                 }
             }
 
@@ -288,7 +288,7 @@ function mc_enqueue_language_tab_script() {
                             if ($target.hasClass('iq-tab-pannel') && !$target.hasClass('active')) {
                                 // Remove inline styles that make inactive panels visible
                                 if ($target.css('display') !== 'none') {
-                                    console.log("Medico Contigo: Removing conflicting inline style from inactive panel:", $target.attr('id'));
+                                    // console.log("Medico Contigo: Removing conflicting inline style from inactive panel:", $target.attr('id'));
                                     $target.css('display', '');
                                 }
                             }
@@ -297,20 +297,20 @@ function mc_enqueue_language_tab_script() {
                         // Watch for class attribute changes (when KiviCare adds .active)
                         if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
                             if ($target.attr('id') === 'language' && $target.hasClass('active')) {
-                                console.log("Medico Contigo: 🔍 DETECTED .active added to #language");
+                                // console.log("Medico Contigo: 🔍 DETECTED .active added to #language");
 
                                 // Small delay to allow click handler to set the flag
                                 setTimeout(function() {
                                     var languageTabClicked = sessionStorage.getItem('mc_language_tab_clicked') === 'true';
                                     var allowedByProgram = sessionStorage.getItem('mc_language_tab_allowed_by_kivicare') === 'true';
 
-                                    console.log("Medico Contigo: Flag check - clicked:", languageTabClicked, "allowed:", allowedByProgram);
+                                    // console.log("Medico Contigo: Flag check - clicked:", languageTabClicked, "allowed:", allowedByProgram);
 
                                     if (!languageTabClicked && !allowedByProgram) {
                                         console.warn("Medico Contigo: ❌ KiviCare incorrectly added .active to #language - REMOVING IT");
                                         $target.removeClass('active');
                                     } else {
-                                        console.log("Medico Contigo: ✅ Language tab activation allowed (user click or service selection)");
+                                        // console.log("Medico Contigo: ✅ Language tab activation allowed (user click or service selection)");
                                     }
                                 }, 10);
                             }
@@ -330,7 +330,7 @@ function mc_enqueue_language_tab_script() {
 
             // Track when user actually clicks language tab
             $(document).on('click', '#language-tab, a[href="#language"]', function(e) {
-                console.log("Medico Contigo: Language tab clicked - allowing activation");
+                // console.log("Medico Contigo: Language tab clicked - allowing activation");
 
                 // Set flag IMMEDIATELY before KiviCare processes the click
                 sessionStorage.setItem('mc_language_tab_clicked', 'true');
@@ -342,27 +342,27 @@ function mc_enqueue_language_tab_script() {
                 setTimeout(function() {
                     if (!$('#language').hasClass('active')) {
                         $('#language').addClass('active');
-                        console.log("Medico Contigo: Manually activated #language panel");
+                        // console.log("Medico Contigo: Manually activated #language panel");
                     } else {
-                        console.log("Medico Contigo: #language panel already active (KiviCare handled it)");
+                        // console.log("Medico Contigo: #language panel already active (KiviCare handled it)");
                     }
                 }, 50);
             });
 
             // Clear the flags when navigating away from language tab
             $(document).on('click', '.tab-link:not([href="#language"])', function() {
-                console.log("Medico Contigo: User clicked another tab - clearing language flags");
+                // console.log("Medico Contigo: User clicked another tab - clearing language flags");
                 sessionStorage.setItem('mc_language_tab_clicked', 'false');
                 sessionStorage.setItem('mc_language_tab_allowed_by_kivicare', 'false');
             });
 
             // Load languages when language tab becomes active
             $(document).on('shown.bs.tab shown.iq.tab', '#language-tab, a[href="#language"]', function() {
-                console.log("Medico Contigo: Language tab activated");
+                // console.log("Medico Contigo: Language tab activated");
 
                 // Check if MC_Booking object exists
                 if (typeof MC_Booking !== 'undefined' && MC_Booking.selectedService) {
-                    console.log("Medico Contigo: Loading languages for service:", MC_Booking.selectedService);
+                    // console.log("Medico Contigo: Loading languages for service:", MC_Booking.selectedService);
 
                     // Show loader
                     $('#mc-language-loader').show();
@@ -379,7 +379,7 @@ function mc_enqueue_language_tab_script() {
 
             // Also trigger on tab click
             $(document).on('click', '#language-tab', function() {
-                console.log("Medico Contigo: Language tab clicked");
+                // console.log("Medico Contigo: Language tab clicked");
             });
 
         })(jQuery);

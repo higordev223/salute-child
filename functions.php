@@ -21,7 +21,7 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '4.8.0', // v4.8.0 - FIX: Redirect to extra data tab when KiviCare skips it due to preselected_single_doctor_id
+        '4.9.2', // v4.9.2 - FIX: Exclude back button from Next button validation to prevent false alerts
         true
     );
 

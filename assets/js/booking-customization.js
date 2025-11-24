@@ -16,23 +16,23 @@
 
     // Debug helper
     logState: function (location) {
-      console.log("========================================");
-      console.log("🔍 MC_Booking State at: " + location);
-      console.log("selectedService:", this.selectedService);
-      console.log("selectedLanguage:", this.selectedLanguage);
-      console.log("selectedDoctor:", this.selectedDoctor);
-      console.log("MC_SELECTED_DOCTOR:", window.MC_SELECTED_DOCTOR);
-      console.log("SessionStorage flags:");
-      console.log(
-        "  - mc_language_tab_allowed_by_kivicare:",
-        sessionStorage.getItem("mc_language_tab_allowed_by_kivicare")
-      );
-      console.log(
-        "  - mc_language_tab_clicked:",
-        sessionStorage.getItem("mc_language_tab_clicked")
-      );
-      console.log("Active tab:", $(".iq-tab-pannel.active").attr("id"));
-      console.log("========================================");
+      // console.log("========================================");
+      // console.log("🔍 MC_Booking State at: " + location);
+      // console.log("selectedService:", this.selectedService);
+      // console.log("selectedLanguage:", this.selectedLanguage);
+      // console.log("selectedDoctor:", this.selectedDoctor);
+      // console.log("MC_SELECTED_DOCTOR:", window.MC_SELECTED_DOCTOR);
+      // console.log("SessionStorage flags:");
+      // console.log(
+      //   "  - mc_language_tab_allowed_by_kivicare:",
+      //   sessionStorage.getItem("mc_language_tab_allowed_by_kivicare")
+      // );
+      // console.log(
+      //   "  - mc_language_tab_clicked:",
+      //   sessionStorage.getItem("mc_language_tab_clicked")
+      // );
+      // console.log("Active tab:", $(".iq-tab-pannel.active").attr("id"));
+      // console.log("========================================");
     },
 
     // Helper to show alert only once (debounced)
@@ -45,7 +45,7 @@
           "⏳ Por favor, espera mientras asignamos un médico.\n\n⏳ Please wait while we assign a doctor."
         );
       } else {
-        console.log("⚠️ Alert suppressed - already shown recently");
+        // console.log("⚠️ Alert suppressed - already shown recently");
       }
     },
 
@@ -53,7 +53,7 @@
       if (this.initialized) return;
       this.initialized = true;
 
-      console.log("🚀 MC_Booking initialized");
+      // console.log("🚀 MC_Booking initialized");
       this.logState("INIT");
 
       // ✅ CRITICAL FIX: Ensure bookAppointmentWidgetData exists and has proper structure
@@ -97,7 +97,145 @@
       // ✅ Skip hidden doctor tab when navigating from date-time
       this.skipDoctorTabNavigation();
 
-      // Back button handling removed - let KiviCare handle it naturally
+      // ✅ FIX: Implement proper back button navigation
+      this.fixBackButtonNavigation();
+    },
+
+    /**
+     * ✅ FIX: Implement proper back button navigation
+     * Ensures each back button goes to the correct previous step
+     */
+    fixBackButtonNavigation: function () {
+      var self = this;
+
+      // ✅ Add back button to language step (it doesn't have one by default)
+      function addLanguageBackButton() {
+        var $languagePanel = $("#language");
+        console.log("🔍 Checking for language panel:", $languagePanel.length);
+
+        if ($languagePanel.length > 0) {
+          // Check if back button already exists
+          if (
+            $languagePanel.find(
+              "#iq-widget-back-button, .iq-button[data-step='prev']"
+            ).length === 0
+          ) {
+            // Find the button container or next button
+            var $buttonContainer = $languagePanel
+              .find(".iq-button-container, .button-container, .widget-actions")
+              .first();
+            var $nextBtn = $languagePanel
+              .find("#iq-widget-next-button, .iq-button[data-step='next']")
+              .first();
+
+            console.log("🔍 Button container found:", $buttonContainer.length);
+            console.log("🔍 Next button found:", $nextBtn.length);
+
+            if ($nextBtn.length > 0) {
+              var $backBtn = $(
+                '<button type="button" class="iq-button iq-button-secondary" id="iq-widget-back-button-language" data-step="prev">◄ Back / Atrás</button>'
+              );
+              $backBtn.css({
+                "margin-right": "10px",
+              });
+
+              if ($buttonContainer.length > 0) {
+                $buttonContainer.prepend($backBtn);
+              } else {
+                $nextBtn.before($backBtn);
+              }
+
+              console.log("✅ Added back button to language step");
+            } else {
+              console.log("⚠️ Could not find next button in language panel");
+            }
+          } else {
+            console.log("ℹ️ Back button already exists in language panel");
+          }
+        } else {
+          console.log("⚠️ Language panel not found");
+        }
+      }
+
+      // Try to add immediately and also after delays
+      setTimeout(addLanguageBackButton, 500);
+      setTimeout(addLanguageBackButton, 1500);
+      setTimeout(addLanguageBackButton, 3000);
+
+      // ✅ Intercept ALL back button clicks using correct selector
+      $(document).on(
+        "click",
+        "#iq-widget-back-button, #iq-widget-back-button-language, .iq-button[data-step='prev']",
+        function (e) {
+          // Find which tab is currently active
+          var $activeTab = $(".iq-tab-pannel.active");
+          var currentTabId = $activeTab.attr("id");
+
+          console.log("◄ BACK BUTTON CLICKED from:", currentTabId);
+
+          // Determine the correct previous tab
+          var previousTabId = null;
+
+          switch (currentTabId) {
+            case "language":
+              previousTabId = "category";
+              console.log("  → Going to: Service (category)");
+              break;
+
+            case "date-time":
+              previousTabId = "language";
+              console.log("  → Going to: Language");
+              break;
+
+            case "file-uploads-custom": // Extra Data
+              previousTabId = "date-time";
+              console.log("  → Going to: Date-Time");
+              break;
+
+            case "detail-info":
+            case "kc_detail_info":
+              // Check if extra data tab exists
+              if ($("#file-uploads-custom").length > 0) {
+                previousTabId = "file-uploads-custom";
+                console.log("  → Going to: Extra Data");
+              } else {
+                previousTabId = "date-time";
+                console.log("  → Going to: Date-Time (no extra data)");
+              }
+              break;
+
+            default:
+              // Let KiviCare handle other tabs
+              console.log("  → Letting KiviCare handle this back navigation");
+              return;
+          }
+
+          // If we determined a previous tab, navigate to it
+          if (previousTabId) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+
+            setTimeout(function () {
+              // Deactivate current tab
+              $activeTab.removeClass("active");
+
+              // Activate previous tab
+              $("#" + previousTabId).addClass("active");
+
+              // Update sidebar
+              $(".tab-link, .tab-item a").removeClass("active");
+              var $previousTabLink = $('a[href="#' + previousTabId + '"]');
+              $previousTabLink.addClass("active");
+              $previousTabLink.closest(".tab-item, li").addClass("active");
+
+              console.log("✅ Navigated back to:", previousTabId);
+            }, 10);
+
+            return false;
+          }
+        }
+      );
     },
 
     /**
@@ -136,7 +274,10 @@
               $("#clinic_id").val(clinicId);
 
               // ✅ CRITICAL: Set in bookAppointmentWidgetData
-              self.injectDoctorIntoBookingData(window.MC_SELECTED_DOCTOR, clinicId);
+              self.injectDoctorIntoBookingData(
+                window.MC_SELECTED_DOCTOR,
+                clinicId
+              );
 
               // ✅ CRITICAL: Trigger KiviCare to load date-time content
               self.triggerDateTimeLoad();
@@ -182,7 +323,10 @@
                 $("input[name='clinic_id']").val(clinicId).trigger("change");
 
                 // ✅ CRITICAL: Inject into bookAppointmentWidgetData
-                self.injectDoctorIntoBookingData(window.MC_SELECTED_DOCTOR, clinicId);
+                self.injectDoctorIntoBookingData(
+                  window.MC_SELECTED_DOCTOR,
+                  clinicId
+                );
 
                 // ✅ CRITICAL: Trigger date-time content load
                 setTimeout(function () {
@@ -263,9 +407,9 @@
                           typeof grecaptcha !== "undefined" &&
                           typeof grecaptcha.render === "function"
                         ) {
-                          console.log(
-                            "   🔐 reCAPTCHA available, checking if it needs initialization"
-                          );
+                          // console.log(
+                          //   "   🔐 reCAPTCHA available, checking if it needs initialization"
+                          // );
 
                           // Look for reCAPTCHA container
                           var $recaptchaContainer = $(
@@ -275,9 +419,9 @@
                             $recaptchaContainer.length > 0 &&
                             $recaptchaContainer.children().length === 0
                           ) {
-                            console.log(
-                              "   🔄 Initializing reCAPTCHA manually"
-                            );
+                            // console.log(
+                            //   "   🔄 Initializing reCAPTCHA manually"
+                            // );
                             try {
                               var sitekey =
                                 $recaptchaContainer.attr("data-sitekey");
@@ -285,36 +429,36 @@
                                 grecaptcha.render($recaptchaContainer[0], {
                                   sitekey: sitekey,
                                 });
-                                console.log(
-                                  "   ✅ reCAPTCHA initialized successfully"
-                                );
+                                // console.log(
+                                //   "   ✅ reCAPTCHA initialized successfully"
+                                // );
                               }
                             } catch (e) {
-                              console.log(
-                                "   ⚠️ reCAPTCHA initialization error:",
-                                e.message
-                              );
+                              // console.log(
+                              //   "   ⚠️ reCAPTCHA initialization error:",
+                              //   e.message
+                              // );
                             }
                           } else {
-                            console.log(
-                              "   ℹ️ reCAPTCHA already initialized or no container found"
-                            );
+                            // console.log(
+                            //   "   ℹ️ reCAPTCHA already initialized or no container found"
+                            // );
                           }
                         } else {
-                          console.log("   ⚠️ reCAPTCHA not loaded on page");
+                          // console.log("   ⚠️ reCAPTCHA not loaded on page");
                         }
                       }, 500);
                     } else if (attempts < maxAttempts) {
                       // Tab not found yet, retry
-                      console.log(
-                        "   ⏳ Register tab not found yet, retrying in 200ms..."
-                      );
+                      // console.log(
+                      //   "   ⏳ Register tab not found yet, retrying in 200ms..."
+                      // );
                       setTimeout(tryActivateRegisterTab, 200);
                     } else {
                       // Max attempts reached, use fallback
-                      console.log(
-                        "   ⚠️ Max attempts reached, using fallback method"
-                      );
+                      // console.log(
+                      //   "   ⚠️ Max attempts reached, using fallback method"
+                      // );
                       $("#kc_register")
                         .addClass("active show")
                         .css("display", "block");
@@ -346,11 +490,11 @@
 
                 // Check if language selection is required
                 if (self.selectedService && !self.selectedLanguage) {
-                  console.log(
-                    "⚠️ BLOCKING AUTO-ADVANCE - Language not selected!"
-                  );
-                  console.log("   Current tab:", targetId);
-                  console.log("   Redirecting to language tab...");
+                  // console.log(
+                  //   "⚠️ BLOCKING AUTO-ADVANCE - Language not selected!"
+                  // );
+                  // console.log("   Current tab:", targetId);
+                  // console.log("   Redirecting to language tab...");
 
                   // Remove active from this tab
                   $target.removeClass("active");
@@ -370,7 +514,7 @@
                       .closest(".tab-item, li")
                       .addClass("active");
 
-                    console.log("✅ Redirected to language tab");
+                    // console.log("✅ Redirected to language tab");
                   }, 10);
 
                   return;
@@ -437,9 +581,9 @@
 
               // If doctor tab is trying to become active, skip it
               if (targetId === "doctor" && $target.hasClass("active")) {
-                console.log(
-                  "🚫 SKIPPING hidden doctor tab, finding next tab in sequence"
-                );
+                // console.log(
+                //   "🚫 SKIPPING hidden doctor tab, finding next tab in sequence"
+                // );
 
                 // Remove active from doctor tab
                 $target.removeClass("active");
@@ -460,7 +604,10 @@
                   });
 
                   // Get the next tab after doctor
-                  if (doctorTabIndex >= 0 && doctorTabIndex < $allTabLinks.length - 1) {
+                  if (
+                    doctorTabIndex >= 0 &&
+                    doctorTabIndex < $allTabLinks.length - 1
+                  ) {
                     var $nextTabLink = $allTabLinks.eq(doctorTabIndex + 1);
                     nextTabHref = $nextTabLink.attr("href");
                     console.log("✅ Next tab after doctor:", nextTabHref);
@@ -477,7 +624,9 @@
                     console.log("✅ Jumped to next tab:", nextTabId);
                   } else {
                     // Fallback to detail-info if we can't find next tab
-                    console.log("⚠️ Could not find next tab, using detail-info");
+                    console.log(
+                      "⚠️ Could not find next tab, using detail-info"
+                    );
                     $("#detail-info, #kc_detail_info").addClass("active");
 
                     $(".tab-link, .tab-item a").removeClass("active");
@@ -529,13 +678,20 @@
 
             // Debug: Log all available tabs
             console.log("📋 All tabs in sidebar:");
-            $(".tab-item a, .tab-link").each(function(index) {
-              console.log("  " + index + ":", $(this).attr("href"), $(this).text().trim());
+            $(".tab-item a, .tab-link").each(function (index) {
+              console.log(
+                "  " + index + ":",
+                $(this).attr("href"),
+                $(this).text().trim()
+              );
             });
 
             var $doctorTab = $("#doctor");
             console.log("🔍 Doctor tab exists:", $doctorTab.length > 0);
-            console.log("🔍 Doctor tab has active class:", $doctorTab.hasClass("active"));
+            console.log(
+              "🔍 Doctor tab has active class:",
+              $doctorTab.hasClass("active")
+            );
 
             if ($doctorTab.hasClass("active")) {
               console.log(
@@ -558,7 +714,10 @@
               });
 
               // Get the next tab after doctor
-              if (doctorTabIndex >= 0 && doctorTabIndex < $allTabLinks.length - 1) {
+              if (
+                doctorTabIndex >= 0 &&
+                doctorTabIndex < $allTabLinks.length - 1
+              ) {
                 var $nextTabLink = $allTabLinks.eq(doctorTabIndex + 1);
                 var nextTabHref = $nextTabLink.attr("href");
                 var nextTabId = nextTabHref.replace("#", "");
@@ -585,11 +744,18 @@
                 $detailTabLink.closest(".tab-item, li").addClass("active");
               }
             } else {
-              console.log("ℹ️ Doctor tab did NOT become active - KiviCare skipped it automatically");
-              console.log("   This means KiviCare is handling tab skipping, not our code");
+              console.log(
+                "ℹ️ Doctor tab did NOT become active - KiviCare skipped it automatically"
+              );
+              console.log(
+                "   This means KiviCare is handling tab skipping, not our code"
+              );
 
               // ✅ CRITICAL FIX: Check if KiviCare jumped to detail-info, skipping extra data
-              if ($activeTab.attr("id") === "detail-info" || $activeTab.attr("id") === "kc_detail_info") {
+              if (
+                $activeTab.attr("id") === "detail-info" ||
+                $activeTab.attr("id") === "kc_detail_info"
+              ) {
                 // Check if file-uploads-custom (extra data) tab exists
                 var $extraDataTab = $("#file-uploads-custom");
                 if ($extraDataTab.length > 0) {
@@ -609,7 +775,9 @@
 
                   console.log("✅ Redirected to: file-uploads-custom");
                 } else {
-                  console.log("ℹ️ No extra data tab found - staying on detail-info");
+                  console.log(
+                    "ℹ️ No extra data tab found - staying on detail-info"
+                  );
                 }
               }
             }
@@ -789,7 +957,7 @@
       $(document).on("change", ".card-checkbox.selected-service", function () {
         if ($(this).is(":checked")) {
           var serviceId = $(this).attr("service_id") || $(this).val();
-          console.log("✅ SERVICE SELECTED (checkbox):", serviceId);
+          // console.log("✅ SERVICE SELECTED (checkbox):", serviceId);
 
           self.selectedService = serviceId;
 
@@ -818,7 +986,7 @@
             var serviceId = checkbox.attr("service_id") || checkbox.val();
 
             if (serviceId) {
-              console.log("✅ SERVICE SELECTED (label click):", serviceId);
+              // console.log("✅ SERVICE SELECTED (label click):", serviceId);
 
               self.selectedService = serviceId;
 
@@ -1027,7 +1195,7 @@
         var langCode = $(this).data("lang-code");
         var langName = $(this).data("lang-name");
 
-        console.log("🌐 LANGUAGE SELECTED:", langName, "(" + langCode + ")");
+        // console.log("🌐 LANGUAGE SELECTED:", langName, "(" + langCode + ")");
 
         // Visual feedback
         $(".mc-language-card").removeClass("selected");
@@ -1041,7 +1209,7 @@
 
         // ✅ CRITICAL: Set flag to block navigation
         self.doctorAssignmentInProgress = true;
-        console.log("🚫 NAVIGATION BLOCKED - Doctor assignment in progress");
+        // console.log("🚫 NAVIGATION BLOCKED - Doctor assignment in progress");
 
         // ✅ CRITICAL: DISABLE Next button immediately and add loading state
         var $nextBtn = $("#language .iq-next-btn, #language .widget-next-btn");
@@ -1060,25 +1228,29 @@
             cursor: "not-allowed",
             "pointer-events": "none",
           })
-          .html('🔄 Asignando médico... / Assigning doctor...');
+          .html("🔄 Asignando médico... / Assigning doctor...");
 
         // ✅ Add event blocker to prevent ANY clicks during loading
-        $nextBtn.off("click.loadingBlock").on("click.loadingBlock", function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          console.log("⚠️ Button click blocked - doctor assignment in progress");
-          return false;
-        });
+        $nextBtn
+          .off("click.loadingBlock")
+          .on("click.loadingBlock", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            console.log(
+              "⚠️ Button click blocked - doctor assignment in progress"
+            );
+            return false;
+          });
 
         // ✅ NOW auto-assign doctor based on service + language
         if (self.selectedService && self.selectedLanguage) {
-          console.log(
-            "🔄 Auto-assigning doctor for service:",
-            self.selectedService,
-            "language:",
-            self.selectedLanguage
-          );
+          // console.log(
+          //   "🔄 Auto-assigning doctor for service:",
+          //   self.selectedService,
+          //   "language:",
+          //   self.selectedLanguage
+          // );
           self.autoSelectDoctor(
             self.selectedService,
             self.selectedLanguage,
@@ -1139,7 +1311,10 @@
             var $target = $(mutation.target);
 
             // Check if a NON-language tab just became active
-            if ($target.hasClass("iq-tab-pannel") && $target.hasClass("active")) {
+            if (
+              $target.hasClass("iq-tab-pannel") &&
+              $target.hasClass("active")
+            ) {
               var tabId = $target.attr("id");
 
               // If doctor assignment is in progress and user tries to leave language tab
@@ -1206,8 +1381,13 @@
       // ✅ FIX: Intercept "Next" button clicks from language tab with HIGHEST PRIORITY
       $(document).on(
         "click",
-        "#language .iq-next-btn, #language .widget-next-btn, #language button[type='submit'], #language button[type='button']",
+        "#language .iq-next-btn, #language .widget-next-btn, #language .iq-button[data-step='next'], #language button[type='submit']",
         function (e) {
+          // Skip if this is a back button
+          if ($(this).attr('data-step') === 'prev' || $(this).attr('id') === 'iq-widget-back-button-language') {
+            return; // Let the back button handler deal with it
+          }
+
           console.log("⏭️ NEXT BUTTON CLICKED on language tab");
 
           self.logState("Next button on language tab");
@@ -1235,10 +1415,13 @@
           }
 
           // ✅ VALIDATION 3: Verify doctor/clinic data is set
-          if (!window.bookAppointmentWidgetData?.doctor_id || !window.bookAppointmentWidgetData?.clinic_id) {
-            console.log("⚠️ Doctor/clinic data not properly set - BLOCKING navigation");
-            console.log("Doctor ID:", window.bookAppointmentWidgetData?.doctor_id);
-            console.log("Clinic ID:", window.bookAppointmentWidgetData?.clinic_id);
+          if (
+            !window.bookAppointmentWidgetData?.doctor_id ||
+            !window.bookAppointmentWidgetData?.clinic_id
+          ) {
+            // console.log("⚠️ Doctor/clinic data not properly set - BLOCKING navigation");
+            // console.log("Doctor ID:", window.bookAppointmentWidgetData?.doctor_id);
+            // console.log("Clinic ID:", window.bookAppointmentWidgetData?.clinic_id);
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
@@ -1249,7 +1432,7 @@
           }
 
           // ✅ ALL VALIDATIONS PASSED - Now prevent default and proceed
-          console.log("✅ All validations passed - proceeding to next tab");
+          // console.log("✅ All validations passed - proceeding to next tab");
           e.preventDefault();
           e.stopPropagation();
           e.stopImmediatePropagation();
@@ -1280,7 +1463,10 @@
             $("#clinic_id").val(clinicId);
 
             // ✅ CRITICAL: Inject into KiviCare's bookAppointmentWidgetData BEFORE navigating
-            self.injectDoctorIntoBookingData(window.MC_SELECTED_DOCTOR, clinicId);
+            self.injectDoctorIntoBookingData(
+              window.MC_SELECTED_DOCTOR,
+              clinicId
+            );
           }
 
           // ✅ FIX: Find and activate the next tab more reliably
@@ -1481,7 +1667,9 @@
     injectDoctorIntoBookingData: function (doctorId, clinicId) {
       // ✅ FIX: Create bookAppointmentWidgetData if it doesn't exist
       if (typeof window.bookAppointmentWidgetData === "undefined") {
-        console.warn("⚠️ bookAppointmentWidgetData doesn't exist, creating it...");
+        console.warn(
+          "⚠️ bookAppointmentWidgetData doesn't exist, creating it..."
+        );
         window.bookAppointmentWidgetData = {};
       }
 
@@ -1508,12 +1696,12 @@
       // ✅ CRITICAL: Force boolean TRUE (not string "true", not 1, but actual boolean)
       window.bookAppointmentWidgetData.preselected_single_doctor_id = true;
 
-      console.log("✅ Injected into bookAppointmentWidgetData:", {
-        doctor_id: window.bookAppointmentWidgetData.doctor_id,
-        clinic_id: window.bookAppointmentWidgetData.clinic_id,
-        preselected_doctor: window.bookAppointmentWidgetData.preselected_doctor,
-        preselected_single_doctor_id: window.bookAppointmentWidgetData.preselected_single_doctor_id
-      });
+      // console.log("✅ Injected into bookAppointmentWidgetData:", {
+      //   doctor_id: window.bookAppointmentWidgetData.doctor_id,
+      //   clinic_id: window.bookAppointmentWidgetData.clinic_id,
+      //   preselected_doctor: window.bookAppointmentWidgetData.preselected_doctor,
+      //   preselected_single_doctor_id: window.bookAppointmentWidgetData.preselected_single_doctor_id
+      // });
     },
 
     /**
@@ -1669,7 +1857,10 @@
 
       // Get clinic_id if not provided
       if (!clinicId) {
-        clinicId = window.MC_SELECTED_CLINIC || window.bookAppointmentWidgetData?.clinic_id || 1;
+        clinicId =
+          window.MC_SELECTED_CLINIC ||
+          window.bookAppointmentWidgetData?.clinic_id ||
+          1;
       }
 
       // Monitor and enforce doctor and clinic values every 100ms
@@ -1718,7 +1909,8 @@
               Boolean(true);
             // Also lock clinic_id
             window.bookAppointmentWidgetData.clinic_id = clinicId;
-            window.bookAppointmentWidgetData.preselected_clinic_id = String(clinicId);
+            window.bookAppointmentWidgetData.preselected_clinic_id =
+              String(clinicId);
           }
         }
       }, 100);
@@ -1784,32 +1976,32 @@
             }
 
             // ✅ LOG SELECTED DOCTOR INFO (AFTER setting values)
-            console.log("========================================");
-            console.log("👨‍⚕️ DOCTOR AUTO-SELECTED");
-            console.log("Doctor ID:", doctorId);
-            console.log("Doctor Name:", doctorName);
-            console.log("Language:", language);
-            console.log("Service ID:", serviceId);
-            console.log("Clinic ID:", returnedClinicId);
-            console.log("---");
-            console.log("📊 DATABASE INFO:");
-            if (response.data.debug) {
-              console.log("Session count:", response.data.debug.session_count);
-              console.log("Sessions:", response.data.debug.sessions);
-              console.log("Doctor-Clinic mapping:", response.data.debug.doctor_clinic_mapping);
-            }
-            console.log("---");
-            console.log("🔍 VERIFICATION (AFTER injection):");
-            console.log("bookAppointmentWidgetData exists:", typeof window.bookAppointmentWidgetData !== "undefined");
-            console.log("bookAppointmentWidgetData.doctor_id:", window.bookAppointmentWidgetData?.doctor_id);
-            console.log("bookAppointmentWidgetData.clinic_id:", window.bookAppointmentWidgetData?.clinic_id);
-            console.log("bookAppointmentWidgetData.preselected_doctor:", window.bookAppointmentWidgetData?.preselected_doctor);
-            console.log("bookAppointmentWidgetData.preselected_single_doctor_id:", window.bookAppointmentWidgetData?.preselected_single_doctor_id);
-            console.log("input[name='doctor_id']:", $("input[name='doctor_id']").val());
-            console.log("input[name='clinic_id']:", $("input[name='clinic_id']").val());
-            console.log("window.MC_SELECTED_DOCTOR:", window.MC_SELECTED_DOCTOR);
-            console.log("window.MC_SELECTED_CLINIC:", window.MC_SELECTED_CLINIC);
-            console.log("========================================");
+            // console.log("========================================");
+            // console.log("👨‍⚕️ DOCTOR AUTO-SELECTED");
+            // console.log("Doctor ID:", doctorId);
+            // console.log("Doctor Name:", doctorName);
+            // console.log("Language:", language);
+            // console.log("Service ID:", serviceId);
+            // console.log("Clinic ID:", returnedClinicId);
+            // console.log("---");
+            // console.log("📊 DATABASE INFO:");
+            // if (response.data.debug) {
+            //   console.log("Session count:", response.data.debug.session_count);
+            //   console.log("Sessions:", response.data.debug.sessions);
+            //   console.log("Doctor-Clinic mapping:", response.data.debug.doctor_clinic_mapping);
+            // }
+            // console.log("---");
+            // console.log("🔍 VERIFICATION (AFTER injection):");
+            // console.log("bookAppointmentWidgetData exists:", typeof window.bookAppointmentWidgetData !== "undefined");
+            // console.log("bookAppointmentWidgetData.doctor_id:", window.bookAppointmentWidgetData?.doctor_id);
+            // console.log("bookAppointmentWidgetData.clinic_id:", window.bookAppointmentWidgetData?.clinic_id);
+            // console.log("bookAppointmentWidgetData.preselected_doctor:", window.bookAppointmentWidgetData?.preselected_doctor);
+            // console.log("bookAppointmentWidgetData.preselected_single_doctor_id:", window.bookAppointmentWidgetData?.preselected_single_doctor_id);
+            // console.log("input[name='doctor_id']:", $("input[name='doctor_id']").val());
+            // console.log("input[name='clinic_id']:", $("input[name='clinic_id']").val());
+            // console.log("window.MC_SELECTED_DOCTOR:", window.MC_SELECTED_DOCTOR);
+            // console.log("window.MC_SELECTED_CLINIC:", window.MC_SELECTED_CLINIC);
+            // console.log("========================================");
 
             // ✅ PROTECTION: Lock the doctor and clinic values to prevent overrides
             self.lockDoctorSelection(doctorId, returnedClinicId);
@@ -1820,16 +2012,16 @@
             }
           } else {
             // No doctor found
-            console.log(
-              "⚠️ No doctor available for this service/language combination"
-            );
+            // console.log(
+            //   "⚠️ No doctor available for this service/language combination"
+            // );
             if (typeof callback === "function") {
               callback(false);
             }
           }
         },
         error: function (xhr, status, error) {
-          console.log("❌ Error auto-selecting doctor:", error);
+          // console.log("❌ Error auto-selecting doctor:", error);
           if (typeof callback === "function") {
             callback(false);
           }
