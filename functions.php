@@ -21,7 +21,7 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '4.9.2', // v4.9.2 - FIX: Exclude back button from Next button validation to prevent false alerts
+        '5.5.0', // v5.5.0 - NEW: Disable sidebar tab clicking - force button-only navigation
         true
     );
 

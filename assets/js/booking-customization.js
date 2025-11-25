@@ -99,6 +99,9 @@
 
       // ✅ FIX: Implement proper back button navigation
       this.fixBackButtonNavigation();
+
+      // ✅ NEW: Disable sidebar tab clicking - force button-only navigation
+      this.disableSidebarTabClicking();
     },
 
     /**
@@ -133,7 +136,7 @@
 
             if ($nextBtn.length > 0) {
               var $backBtn = $(
-                '<button type="button" class="iq-button iq-button-secondary" id="iq-widget-back-button-language" data-step="prev">◄ Back / Atrás</button>'
+                '<button type="button" class="iq-button iq-button-secondary" id="iq-widget-back-button-language" data-step="prev">Back</button>'
               );
               $backBtn.css({
                 "margin-right": "10px",
@@ -162,80 +165,336 @@
       setTimeout(addLanguageBackButton, 1500);
       setTimeout(addLanguageBackButton, 3000);
 
-      // ✅ Intercept ALL back button clicks using correct selector
-      $(document).on(
-        "click",
-        "#iq-widget-back-button, #iq-widget-back-button-language, .iq-button[data-step='prev']",
-        function (e) {
-          // Find which tab is currently active
-          var $activeTab = $(".iq-tab-pannel.active");
-          var currentTabId = $activeTab.attr("id");
+      // ✅ NUCLEAR OPTION: Use native addEventListener with capture phase
+      // This runs BEFORE any other handlers
+      function attachCapturePhaseHandler() {
+        // Get all back buttons
+        var backButtons = document.querySelectorAll(
+          "#iq-widget-back-button, #iq-widget-back-button-language, .iq-button[data-step='prev']"
+        );
 
-          console.log("◄ BACK BUTTON CLICKED from:", currentTabId);
+        backButtons.forEach(function (button) {
+          // Remove any existing listener first
+          button.removeEventListener("click", handleBackButtonCapture, true);
+          // Add listener in CAPTURE phase (runs first!)
+          button.addEventListener("click", handleBackButtonCapture, true);
+        });
 
-          // Determine the correct previous tab
-          var previousTabId = null;
+        if (backButtons.length > 0) {
+          console.log(
+            "✅ Attached capture phase handlers to",
+            backButtons.length,
+            "back buttons"
+          );
+        }
+      }
 
-          switch (currentTabId) {
-            case "language":
-              previousTabId = "category";
-              console.log("  → Going to: Service (category)");
-              break;
+      // The handler that runs in capture phase
+      function handleBackButtonCapture(e) {
+        console.log("🔴 CAPTURE HANDLER TRIGGERED!");
+        console.log("   Event type:", e.type);
+        console.log("   Target:", e.target);
+        console.log("   Button ID:", e.target.id);
 
-            case "date-time":
-              previousTabId = "language";
-              console.log("  → Going to: Language");
-              break;
+        // IMMEDIATELY stop everything
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
 
-            case "file-uploads-custom": // Extra Data
+        // Find which tab is CURRENTLY active (before any navigation)
+        var $activeTab = $(".iq-tab-pannel.active");
+        var currentTabId = $activeTab.attr("id");
+
+        console.log("◄ BACK BUTTON CLICKED (CAPTURE) from:", currentTabId);
+
+        // Determine the correct previous tab
+        var previousTabId = null;
+
+        switch (currentTabId) {
+          case "language":
+            previousTabId = "category";
+            console.log("  → Going to: Service (category)");
+            break;
+
+          case "date-time":
+            previousTabId = "language";
+            console.log("  → Going to: Language");
+            break;
+
+          case "file-uploads-custom": // Extra Data
+            previousTabId = "date-time";
+            console.log("  → Going to: Date-Time");
+            break;
+
+          case "detail-info":
+          case "kc_detail_info":
+            // Check if extra data tab exists
+            if ($("#file-uploads-custom").length > 0) {
+              previousTabId = "file-uploads-custom";
+              console.log("  → Going to: Extra Data");
+            } else {
               previousTabId = "date-time";
-              console.log("  → Going to: Date-Time");
-              break;
+              console.log("  → Going to: Date-Time (no extra data)");
+            }
+            break;
 
-            case "detail-info":
-            case "kc_detail_info":
-              // Check if extra data tab exists
-              if ($("#file-uploads-custom").length > 0) {
-                previousTabId = "file-uploads-custom";
-                console.log("  → Going to: Extra Data");
-              } else {
-                previousTabId = "date-time";
-                console.log("  → Going to: Date-Time (no extra data)");
-              }
-              break;
+          default:
+            // For other tabs, still block KiviCare and do nothing
+            console.log("  → Unknown tab, blocking navigation");
+            return false;
+        }
 
-            default:
-              // Let KiviCare handle other tabs
-              console.log("  → Letting KiviCare handle this back navigation");
-              return;
+        // If we determined a previous tab, navigate to it
+        if (previousTabId) {
+          // ✅ CRITICAL: Deactivate ALL tabs first (not just current one)
+          $(".iq-tab-pannel").removeClass("active");
+
+          // Activate previous tab
+          var $previousTab = $("#" + previousTabId);
+          $previousTab.addClass("active");
+
+          // ✅ CRITICAL: Ensure the panel is visible (remove any hidden styles)
+          $previousTab
+            .css({
+              display: "block !important",
+              opacity: "1",
+              visibility: "visible",
+              height: "auto",
+              overflow: "visible",
+            })
+            .show()
+            .removeClass("d-none hidden");
+
+          // Also remove hide/hidden classes
+          $previousTab.attr(
+            "style",
+            $previousTab.attr("style") + "; display: block !important;"
+          );
+
+          // ✅ CRITICAL: Clear ALL sidebar active states first
+          $(".tab-link, .tab-item a, .tab-item, li").removeClass("active");
+
+          // Then activate only the correct one
+          var $previousTabLink = $('a[href="#' + previousTabId + '"]');
+          $previousTabLink.addClass("active");
+          $previousTabLink.closest(".tab-item, li").addClass("active");
+
+          // ✅ NUCLEAR: Trigger click on the sidebar link to force parent theme to show panel
+          if ($previousTabLink.length > 0) {
+            console.log(
+              "🔨 Clicking sidebar link to force parent theme visibility"
+            );
+            // Trigger actual click event on the link
+            setTimeout(function () {
+              $previousTabLink[0].click();
+            }, 50);
           }
 
-          // If we determined a previous tab, navigate to it
-          if (previousTabId) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
+          console.log("✅ Navigated back to:", previousTabId);
+          console.log("✅ Made panel visible:", previousTabId);
 
+          // ✅ CRITICAL: Clear data from the step we just left AND all future steps
+          console.log(
+            "🗑️ Clearing data from step:",
+            currentTabId,
+            "and all future steps"
+          );
+
+          // Define step order
+          var stepOrder = [
+            "category",
+            "language",
+            "date-time",
+            "file-uploads-custom",
+            "detail-info",
+          ];
+          var currentStepIndex = stepOrder.indexOf(currentTabId);
+
+          // Clear current step and all steps after it
+          for (var i = currentStepIndex; i < stepOrder.length; i++) {
+            var stepToClear = stepOrder[i];
+            console.log("  🗑️ Clearing step:", stepToClear);
+
+            switch (stepToClear) {
+              case "language":
+                // Clear language selection
+                console.log("    → Clearing language selection");
+                self.selectedLanguage = null;
+                $(".mc-language-card").removeClass("selected");
+                $("#mc-selected-language").val("");
+                // Remove active/completed state and data-check from sidebar
+                $('a[href="#language"]')
+                  .parent()
+                  .removeClass("active completed")
+                  .attr("data-check", "false");
+                $('a[href="#language"]').removeClass("active");
+                break;
+
+              case "date-time":
+                // Clear date/time selections
+                console.log("    → Clearing date-time selections");
+                $(".iq-calendar-date.selected").removeClass("selected");
+                $(".iq-time-slot.selected").removeClass("selected");
+                $("input[name='appointment_date']").val("");
+                $("input[name='appointment_time']").val("");
+                $("input[name='appointment_start_time']").val("");
+                $("input[name='appointment_end_time']").val("");
+                // Remove active/completed state and data-check from sidebar
+                $('a[href="#date-time"]')
+                  .parent()
+                  .removeClass("active completed")
+                  .attr("data-check", "false");
+                $('a[href="#date-time"]').removeClass("active");
+                break;
+
+              case "file-uploads-custom":
+                // Clear extra data
+                console.log("    → Clearing extra data (files/descriptions)");
+                $("#file-uploads-custom input[type='file']").val("");
+                $("#file-uploads-custom textarea").val("");
+                $("#file-uploads-custom input[type='text']").val("");
+                $(
+                  "#file-uploads-custom .file-preview, .uploaded-file"
+                ).remove();
+                // Remove active/completed state and data-check from sidebar
+                $('a[href="#file-uploads-custom"]')
+                  .parent()
+                  .removeClass("active completed")
+                  .attr("data-check", "false");
+                $('a[href="#file-uploads-custom"]').removeClass("active");
+                console.log(
+                  "    ✅ Set data-check=false for file-uploads-custom"
+                );
+                break;
+
+              case "detail-info":
+                // Clear user details
+                console.log("    → Clearing user detail form");
+                $("input[name='first_name']").val("");
+                $("input[name='last_name']").val("");
+                $("input[name='user_email']").val("");
+                $("input[name='mobile_number']").val("");
+                $("input[name='gender']").val("").prop("checked", false);
+                $("textarea[name='description']").val("");
+                $("#detail-info .error, #detail-info .invalid").removeClass(
+                  "error invalid"
+                );
+                // Remove active/completed state and data-check from sidebar
+                $('a[href="#detail-info"]')
+                  .parent()
+                  .removeClass("active completed")
+                  .attr("data-check", "false");
+                $('a[href="#detail-info"]').removeClass("active");
+                break;
+            }
+          }
+
+          // ✅ ADDITIONAL: If going back to Step 1, also clear doctor and clinic
+          if (previousTabId === "category") {
+            console.log("🔄 Back to Step 1 - clearing doctor and clinic");
+            self.selectedDoctor = null;
+            window.MC_SELECTED_DOCTOR = null;
+            window.MC_SELECTED_DOCTOR_NAME = null;
+            window.MC_SELECTED_CLINIC = null;
+            self.doctorAssignmentInProgress = false;
+
+            // Clear doctor/clinic form fields
+            $("input[name='doctor_id']").val("");
+            $("input[name='clinic_id']").val("");
+
+            // Clear bookAppointmentWidgetData
+            if (typeof window.bookAppointmentWidgetData !== "undefined") {
+              window.bookAppointmentWidgetData.doctor_id = null;
+              window.bookAppointmentWidgetData.clinic_id = null;
+              window.bookAppointmentWidgetData.preselected_doctor = null;
+              window.bookAppointmentWidgetData.preselected_single_doctor_id = false;
+            }
+          }
+
+          console.log(
+            "✅ Data and tab states cleared from:",
+            currentTabId,
+            "onwards"
+          );
+
+          // ✅ Force parent theme to recognize the language tab as active
+          if (previousTabId === "language") {
+            // Set session storage flag that parent theme checks
+            sessionStorage.setItem(
+              "mc_language_tab_allowed_by_kivicare",
+              "true"
+            );
+
+            // Trigger any parent theme watchers
+            $(document).trigger("languageTabActivated");
+
+            // Force a reflow to ensure CSS is applied
+            $previousTab[0].offsetHeight;
+
+            console.log("🔧 Triggered parent theme language tab activation");
+          }
+
+          // ✅ SPECIAL: If going back to language tab, ensure language cards are rendered
+          if (previousTabId === "language" && self.selectedService) {
+            console.log(
+              "🔄 Re-rendering language cards for service:",
+              self.selectedService
+            );
+
+            // Trigger the service selection to re-render language cards
             setTimeout(function () {
-              // Deactivate current tab
-              $activeTab.removeClass("active");
+              // Check if language cards container exists and is empty
+              var $languageCards = $("#mc-language-cards");
+              if (
+                $languageCards.length === 0 ||
+                $languageCards.children().length === 0
+              ) {
+                console.log("⚠️ Language cards missing, triggering re-render");
 
-              // Activate previous tab
-              $("#" + previousTabId).addClass("active");
-
-              // Update sidebar
-              $(".tab-link, .tab-item a").removeClass("active");
-              var $previousTabLink = $('a[href="#' + previousTabId + '"]');
-              $previousTabLink.addClass("active");
-              $previousTabLink.closest(".tab-item, li").addClass("active");
-
-              console.log("✅ Navigated back to:", previousTabId);
-            }, 10);
-
-            return false;
+                // Simulate service selection to trigger language card rendering
+                var $serviceCheckbox = $(
+                  '.card-checkbox.selected-service[service_id="' +
+                    self.selectedService +
+                    '"]'
+                );
+                if ($serviceCheckbox.length > 0) {
+                  $serviceCheckbox.trigger("change");
+                } else {
+                  // Alternative: trigger label click
+                  var $serviceLabel = $(
+                    'label[for="service_' + self.selectedService + '"]'
+                  );
+                  if ($serviceLabel.length > 0) {
+                    $serviceLabel.trigger("click");
+                  }
+                }
+              } else {
+                console.log(
+                  "✅ Language cards already present:",
+                  $languageCards.children().length
+                );
+              }
+            }, 100);
           }
         }
-      );
+
+        return false;
+      }
+
+      // Attach handlers at multiple times to catch dynamically added buttons
+      setTimeout(attachCapturePhaseHandler, 600);
+      setTimeout(attachCapturePhaseHandler, 1600);
+      setTimeout(attachCapturePhaseHandler, 3100);
+
+      // Also re-attach when new tabs become active
+      $(document).on("DOMNodeInserted", function (e) {
+        if (
+          $(e.target).hasClass("iq-button") ||
+          $(e.target).attr("id") === "iq-widget-back-button"
+        ) {
+          setTimeout(attachCapturePhaseHandler, 50);
+        }
+      });
     },
 
     /**
@@ -1378,13 +1637,91 @@
     interceptTabNavigation: function () {
       var self = this;
 
+      // ✅ FIX: Intercept "Next" button clicks from CATEGORY tab (Step 1)
+      // This ensures language cards are rendered when navigating to Step 2 with a saved service
+      $(document).on(
+        "click",
+        "#category .iq-next-btn, #category .widget-next-btn, #category .iq-button[data-step='next'], #category button[type='submit']:not([data-step='prev'])",
+        function (e) {
+          console.log("⏭️ NEXT BUTTON CLICKED on category tab (Step 1)");
+
+          // Check if a service is already selected (from previous navigation)
+          if (!self.selectedService) {
+            // No service selected at all - block and show alert
+            console.log("⚠️ No service selected - BLOCKING navigation");
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            alert(
+              "Por favor, selecciona un servicio.\n\nPlease select a service."
+            );
+            return false;
+          }
+
+          // Service is selected but user didn't re-select it
+          // KiviCare might try to skip language tab, so we need to force navigation to it
+          console.log("✅ Service is selected:", self.selectedService);
+          console.log("   Preventing KiviCare from skipping language tab...");
+
+          // ✅ CRITICAL: Prevent KiviCare's default navigation
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+
+          // ✅ MANUALLY navigate to language tab
+          console.log("🔄 Manually activating language tab...");
+
+          // Deactivate all tabs
+          $(".iq-tab-pannel").removeClass("active");
+
+          // Activate language tab
+          var $languagePanel = $("#language");
+          $languagePanel.addClass("active");
+
+          // Update sidebar
+          $(".tab-link, .tab-item a").removeClass("active");
+          var $languageTabLink = $('a[href="#language"], #language-tab');
+          $languageTabLink.addClass("active");
+          $languageTabLink.closest(".tab-item, li").addClass("active");
+
+          // Mark language tab as available
+          sessionStorage.setItem("mc_language_tab_allowed_by_kivicare", "true");
+
+          console.log("✅ Language tab manually activated");
+
+          // Now render language cards with the saved service
+          setTimeout(function () {
+            console.log("🔄 Checking if language cards need to be rendered...");
+
+            var $languageCards = $("#mc-language-cards");
+            if (
+              $languageCards.length === 0 ||
+              $languageCards.children().length === 0 ||
+              $languageCards.children(".mc-language-card").length === 0
+            ) {
+              console.log("⚠️ Language cards not rendered, triggering render with saved service:", self.selectedService);
+
+              // Re-trigger language card loading with the saved service
+              self.loadLanguagesForTab();
+            } else {
+              console.log("✅ Language cards already rendered:", $languageCards.children(".mc-language-card").length, "cards");
+            }
+          }, 300);
+
+          return false;
+        }
+      );
+
       // ✅ FIX: Intercept "Next" button clicks from language tab with HIGHEST PRIORITY
       $(document).on(
         "click",
         "#language .iq-next-btn, #language .widget-next-btn, #language .iq-button[data-step='next'], #language button[type='submit']",
         function (e) {
           // Skip if this is a back button
-          if ($(this).attr('data-step') === 'prev' || $(this).attr('id') === 'iq-widget-back-button-language') {
+          if (
+            $(this).attr("data-step") === "prev" ||
+            $(this).attr("id") === "iq-widget-back-button-language"
+          ) {
             return; // Let the back button handler deal with it
           }
 
@@ -2162,6 +2499,98 @@
           }
         }
       }, 100);
+    },
+
+    /**
+     * ✅ NEW: Disable sidebar tab clicking - force button-only navigation
+     * Prevents users from clicking sidebar tabs to navigate
+     */
+    disableSidebarTabClicking: function () {
+      var self = this;
+
+      console.log("🚫 Disabling sidebar tab clicking - navigation only via buttons");
+
+      // Function to block tab clicks
+      function blockTabClicks(e) {
+        // Get the clicked element
+        var $clicked = $(e.target).closest(".tab-link, .tab-item a, a[href^='#']");
+
+        // Check if it's a tab link (not a button)
+        if ($clicked.length > 0) {
+          var href = $clicked.attr("href");
+
+          // Check if it's a tab navigation link (starts with #)
+          if (href && href.startsWith("#")) {
+            var targetTabId = href.replace("#", "");
+
+            // Check if it's one of the booking step tabs
+            var bookingTabs = ["category", "language", "date-time", "file-uploads-custom", "detail-info", "doctor"];
+            if (bookingTabs.indexOf(targetTabId) !== -1) {
+              console.log("🚫 BLOCKING sidebar tab click to:", targetTabId);
+              console.log("   Users must use Back/Next buttons for navigation");
+
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+
+              // Show a friendly message
+              alert(
+                "⚠️ Por favor, usa los botones 'Atrás' y 'Siguiente' para navegar.\n\n⚠️ Please use the 'Back' and 'Next' buttons to navigate."
+              );
+
+              return false;
+            }
+          }
+        }
+      }
+
+      // Attach in both capture and bubble phases for maximum coverage
+      $(document).on("click", ".tab-link, .tab-item a, a[href^='#']", blockTabClicks);
+
+      // Also attach in capture phase using native DOM
+      document.addEventListener("click", function(e) {
+        var $target = $(e.target);
+        var $link = $target.closest(".tab-link, .tab-item a, a[href^='#']");
+
+        if ($link.length > 0) {
+          var href = $link.attr("href");
+          if (href && href.startsWith("#")) {
+            var targetTabId = href.replace("#", "");
+            var bookingTabs = ["category", "language", "date-time", "file-uploads-custom", "detail-info", "doctor"];
+
+            if (bookingTabs.indexOf(targetTabId) !== -1) {
+              e.preventDefault();
+              e.stopPropagation();
+              e.stopImmediatePropagation();
+              return false;
+            }
+          }
+        }
+      }, true); // true = capture phase
+
+      // Visual feedback: Add pointer-events CSS to make it clear tabs aren't clickable
+      function addVisualFeedback() {
+        $(".tab-link, .tab-item a").each(function() {
+          var href = $(this).attr("href");
+          if (href && href.startsWith("#")) {
+            var targetTabId = href.replace("#", "");
+            var bookingTabs = ["category", "language", "date-time", "file-uploads-custom", "detail-info", "doctor"];
+
+            if (bookingTabs.indexOf(targetTabId) !== -1) {
+              $(this).css({
+                "cursor": "not-allowed",
+                "opacity": "0.7"
+              });
+            }
+          }
+        });
+      }
+
+      // Apply visual feedback immediately and periodically
+      addVisualFeedback();
+      setInterval(addVisualFeedback, 1000);
+
+      console.log("✅ Sidebar tab clicking disabled - button-only navigation enforced");
     },
   };
 
