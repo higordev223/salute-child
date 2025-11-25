@@ -21,7 +21,7 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '5.5.0', // v5.5.0 - NEW: Disable sidebar tab clicking - force button-only navigation
+        '5.5.1', // v5.5.1 - REMOVE: Alert notification when clicking sidebar tabs (silent blocking)
         true
     );
 

@@ -2533,11 +2533,6 @@
               e.stopPropagation();
               e.stopImmediatePropagation();
 
-              // Show a friendly message
-              alert(
-                "⚠️ Por favor, usa los botones 'Atrás' y 'Siguiente' para navegar.\n\n⚠️ Please use the 'Back' and 'Next' buttons to navigate."
-              );
-
               return false;
             }
           }
