@@ -21,7 +21,7 @@ function mc_enqueue_booking_scripts() {
         'mc-booking-custom',
         get_stylesheet_directory_uri() . '/assets/js/booking-customization.js',
         array('jquery'),
-        '5.5.1', // v5.5.1 - REMOVE: Alert notification when clicking sidebar tabs (silent blocking)
+        '5.7.0', // v5.7.0 - CLEANUP: Removed all reCAPTCHA debug code and handlers (reCAPTCHA disabled in KiviCare)
         true
     );
 

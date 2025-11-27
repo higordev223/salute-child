@@ -622,13 +622,6 @@
 
                   function tryActivateRegisterTab() {
                     attempts++;
-                    console.log(
-                      "📝 Attempting to activate register tab (attempt " +
-                        attempts +
-                        "/" +
-                        maxAttempts +
-                        ")"
-                    );
 
                     // Look for register tab link with multiple selectors
                     var $registerTabLink = $(
@@ -641,8 +634,6 @@
                     );
 
                     if ($registerTabLink.length > 0) {
-                      console.log("   ✅ Found register tab link, clicking it");
-
                       // Click the tab to trigger KiviCare's initialization
                       $registerTabLink.first().trigger("click");
 
@@ -652,94 +643,20 @@
                           var tab = new bootstrap.Tab($registerTabLink[0]);
                           tab.show();
                         } catch (e) {
-                          console.log(
-                            "   Bootstrap Tab not available:",
-                            e.message
-                          );
+                          // Bootstrap not available
                         }
                       }
-
-                      // Wait for reCAPTCHA to initialize
-                      setTimeout(function () {
-                        // Check if reCAPTCHA loaded
-                        if (
-                          typeof grecaptcha !== "undefined" &&
-                          typeof grecaptcha.render === "function"
-                        ) {
-                          // console.log(
-                          //   "   🔐 reCAPTCHA available, checking if it needs initialization"
-                          // );
-
-                          // Look for reCAPTCHA container
-                          var $recaptchaContainer = $(
-                            "#kc_register .g-recaptcha, #kc_register [data-sitekey]"
-                          );
-                          if (
-                            $recaptchaContainer.length > 0 &&
-                            $recaptchaContainer.children().length === 0
-                          ) {
-                            // console.log(
-                            //   "   🔄 Initializing reCAPTCHA manually"
-                            // );
-                            try {
-                              var sitekey =
-                                $recaptchaContainer.attr("data-sitekey");
-                              if (sitekey) {
-                                grecaptcha.render($recaptchaContainer[0], {
-                                  sitekey: sitekey,
-                                });
-                                // console.log(
-                                //   "   ✅ reCAPTCHA initialized successfully"
-                                // );
-                              }
-                            } catch (e) {
-                              // console.log(
-                              //   "   ⚠️ reCAPTCHA initialization error:",
-                              //   e.message
-                              // );
-                            }
-                          } else {
-                            // console.log(
-                            //   "   ℹ️ reCAPTCHA already initialized or no container found"
-                            // );
-                          }
-                        } else {
-                          // console.log("   ⚠️ reCAPTCHA not loaded on page");
-                        }
-                      }, 500);
                     } else if (attempts < maxAttempts) {
                       // Tab not found yet, retry
-                      // console.log(
-                      //   "   ⏳ Register tab not found yet, retrying in 200ms..."
-                      // );
                       setTimeout(tryActivateRegisterTab, 200);
                     } else {
                       // Max attempts reached, use fallback
-                      // console.log(
-                      //   "   ⚠️ Max attempts reached, using fallback method"
-                      // );
                       $("#kc_register")
                         .addClass("active show")
                         .css("display", "block");
                       $("#kc_login")
                         .removeClass("active show")
                         .css("display", "none");
-
-                      // Try to initialize reCAPTCHA even with fallback
-                      setTimeout(function () {
-                        if (typeof grecaptcha !== "undefined") {
-                          $(".g-recaptcha").each(function () {
-                            if ($(this).children().length === 0) {
-                              var sitekey = $(this).attr("data-sitekey");
-                              if (sitekey) {
-                                try {
-                                  grecaptcha.render(this, { sitekey: sitekey });
-                                } catch (e) {}
-                              }
-                            }
-                          });
-                        }
-                      }, 500);
                     }
                   }
 
@@ -2508,7 +2425,7 @@
     disableSidebarTabClicking: function () {
       var self = this;
 
-      console.log("🚫 Disabling sidebar tab clicking - navigation only via buttons");
+      // Disable sidebar tab clicking - navigation only via buttons
 
       // Function to block tab clicks
       function blockTabClicks(e) {
@@ -2526,13 +2443,9 @@
             // Check if it's one of the booking step tabs
             var bookingTabs = ["category", "language", "date-time", "file-uploads-custom", "detail-info", "doctor"];
             if (bookingTabs.indexOf(targetTabId) !== -1) {
-              console.log("🚫 BLOCKING sidebar tab click to:", targetTabId);
-              console.log("   Users must use Back/Next buttons for navigation");
-
               e.preventDefault();
               e.stopPropagation();
               e.stopImmediatePropagation();
-
               return false;
             }
           }
@@ -2584,8 +2497,6 @@
       // Apply visual feedback immediately and periodically
       addVisualFeedback();
       setInterval(addVisualFeedback, 1000);
-
-      console.log("✅ Sidebar tab clicking disabled - button-only navigation enforced");
     },
   };
 
